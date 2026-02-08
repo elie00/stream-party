@@ -1,0 +1,113 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply bg-[#0f0f0f] text-white;
+}
+
+/* Scrollbar styling for dark theme */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1a1a1a;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #333;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+/* Custom focus ring */
+*:focus-visible {
+  outline: 2px solid #7c3aed;
+  outline-offset: 2px;
+}
+
+/* ===== Video.js dark theme overrides ===== */
+.video-js {
+  background-color: #000;
+}
+
+.video-js .vjs-control-bar {
+  background-color: rgba(0, 0, 0, 0.7);
+}
+
+.video-js .vjs-play-progress,
+.video-js .vjs-volume-level {
+  background-color: #7c3aed;
+}
+
+.video-js .vjs-slider:focus .vjs-play-progress {
+  background-color: #7c3aed;
+}
+
+.video-js .vjs-big-play-button {
+  background-color: rgba(124, 58, 237, 0.8);
+  border: none;
+  border-radius: 50%;
+  width: 80px;
+  height: 80px;
+  line-height: 80px;
+  font-size: 40px;
+}
+
+.video-js .vjs-big-play-button:hover {
+  background-color: rgba(124, 58, 237, 1);
+}
+
+/* Make player fill container */
+.video-player-wrapper .video-js {
+  width: 100%;
+  height: 100%;
+}
+
+.video-player-wrapper .vjs-poster {
+  background-color: #000;
+}
+
+/* ===== Chat sidebar responsive behavior ===== */
+
+/* Desktop (lg and above): chat is inline within the flex layout */
+@media (min-width: 1024px) {
+  .chat-sidebar {
+    /* No special positioning needed - sits in the flex flow */
+  }
+}
+
+/* Tablet and below: chat is a fixed overlay sliding from the right */
+@media (max-width: 1023px) {
+  .chat-sidebar {
+    position: fixed;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    z-index: 40;
+    width: 320px;
+    max-width: 85vw;
+    animation: slide-in-right 0.2s ease-out;
+  }
+}
+
+/* Mobile: full-width overlay */
+@media (max-width: 640px) {
+  .chat-sidebar {
+    width: 100%;
+    max-width: 100%;
+  }
+}
+
+@keyframes slide-in-right {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}

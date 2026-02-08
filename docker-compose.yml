@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: streamparty-db
+    restart: unless-stopped
+    ports:
+      - '5432:5432'
+    environment:
+      POSTGRES_DB: streamparty
+      POSTGRES_USER: streamparty
+      POSTGRES_PASSWORD: streamparty_dev
+    volumes:
+      - streamparty-pgdata:/var/lib/postgresql/data
+
+volumes:
+  streamparty-pgdata:
