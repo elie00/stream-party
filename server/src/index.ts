@@ -5,6 +5,7 @@ import { createServer } from 'http';
 import authRoutes from './routes/auth';
 import roomRoutes from './routes/rooms';
 import { createSocketServer } from './socket/index';
+import { apiLimiter } from './middleware/rateLimiter';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -15,6 +16,9 @@ app.use(cors({
   credentials: true,
 }));
 app.use(express.json());
+
+// Apply global rate limiter to all API routes
+app.use('/api', apiLimiter);
 
 // Health check
 app.get('/api/health', (_req, res) => {

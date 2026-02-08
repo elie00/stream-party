@@ -1,5 +1,7 @@
 import SimplePeer from 'simple-peer';
 import { getSocket } from './socket';
+import { getIceServers } from './api';
+import { logger } from '../utils/logger';
 
 interface PeerConnection {
   peer: SimplePeer.Instance;
@@ -16,6 +18,8 @@ class PeerManager {
   private onRemoteStreamRemoved: ((userId: string) => void) | null = null;
   private audioEnabled = true;
   private videoEnabled = true;
+  private cachedIceServers: RTCIceServer[] | null = null;
+  private iceServersFetchPromise: Promise<RTCIceServer[]> | null = null;
 
   setCallbacks(
     onStream: StreamHandler,
@@ -48,19 +52,54 @@ class PeerManager {
     return this.localStream;
   }
 
-  createPeer(userId: string, initiator: boolean): SimplePeer.Instance {
+  /**
+   * Fetch ICE servers from API (with caching)
+   */
+  private async fetchIceServers(): Promise<RTCIceServer[]> {
+    // Return cached if available
+    if (this.cachedIceServers) {
+      return this.cachedIceServers;
+    }
+
+    // Avoid duplicate fetches
+    if (this.iceServersFetchPromise) {
+      return this.iceServersFetchPromise;
+    }
+
+    this.iceServersFetchPromise = (async () => {
+      try {
+        const { iceServers } = await getIceServers();
+        this.cachedIceServers = iceServers as RTCIceServer[];
+        logger.info('Fetched ICE servers', { count: iceServers.length });
+        return this.cachedIceServers;
+      } catch (err) {
+        logger.warn('Failed to fetch ICE servers, using STUN only', err);
+        // Fallback to STUN only
+        return [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+        ];
+      } finally {
+        this.iceServersFetchPromise = null;
+      }
+    })();
+
+    return this.iceServersFetchPromise;
+  }
+
+  async createPeer(userId: string, initiator: boolean): Promise<SimplePeer.Instance> {
     // Destroy existing peer for this user if any
     this.destroyPeer(userId);
+
+    // Fetch ICE servers dynamically
+    const iceServers = await this.fetchIceServers();
 
     const peer = new SimplePeer({
       initiator,
       stream: this.localStream || undefined,
       trickle: true,
       config: {
-        iceServers: [
-          { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:stun1.l.google.com:19302' },
-        ],
+        iceServers,
       },
     });
 
@@ -90,7 +129,10 @@ class PeerManager {
     });
 
     peer.on('error', (err) => {
-      console.error(`Peer error with ${userId}:`, err);
+      logger.error(`Peer connection failed with ${userId}`, {
+        error: err.message,
+        code: (err as Error & { code?: string }).code,
+      });
       this.destroyPeer(userId);
       this.onRemoteStreamRemoved?.(userId);
     });
@@ -110,8 +152,8 @@ class PeerManager {
    * When a new user joins the call, existing call participants initiate
    * a peer connection to them.
    */
-  handleUserJoinedCall(userId: string): void {
-    this.createPeer(userId, true);
+  async handleUserJoinedCall(userId: string): Promise<void> {
+    await this.createPeer(userId, true);
   }
 
   handleUserLeftCall(userId: string): void {
@@ -123,8 +165,8 @@ class PeerManager {
    * Handle an incoming offer from a remote peer.
    * Create a non-initiator peer and feed the offer signal.
    */
-  handleOffer(userId: string, signal: unknown): void {
-    const peer = this.createPeer(userId, false);
+  async handleOffer(userId: string, signal: unknown): Promise<void> {
+    const peer = await this.createPeer(userId, false);
     peer.signal(signal as SimplePeer.SignalData);
   }
 

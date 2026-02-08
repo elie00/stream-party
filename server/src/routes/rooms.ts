@@ -3,6 +3,7 @@ import { customAlphabet } from 'nanoid';
 import { createRoomSchema, ROOM_CODE_ALPHABET, ROOM_CODE_LENGTH } from '@stream-party/shared';
 import { db, schema } from '../db/index';
 import { authMiddleware } from '../middleware/auth';
+import { createRoomLimiter } from '../middleware/rateLimiter';
 import { eq } from 'drizzle-orm';
 
 const router = Router();
@@ -11,7 +12,7 @@ const generateRoomCode = customAlphabet(ROOM_CODE_ALPHABET, ROOM_CODE_LENGTH);
 // All room routes require authentication
 router.use(authMiddleware);
 
-router.post('/', async (req, res) => {
+router.post('/', createRoomLimiter, async (req, res) => {
   try {
     const result = createRoomSchema.safeParse(req.body);
 
@@ -102,6 +103,40 @@ router.get('/:code', async (req, res) => {
   } catch (error) {
     console.error('Error fetching room:', error);
     res.status(500).json({ error: 'Failed to fetch room' });
+  }
+});
+
+/**
+ * Get ICE servers (STUN + TURN) for WebRTC
+ * TURN credentials are fetched dynamically from Xirsys
+ */
+router.get('/ice-servers', async (_req, res) => {
+  try {
+    const { getXirsysTurnCredentials } = await import('../services/xirsys.js');
+
+    // Base STUN servers (always available)
+    const iceServers: Array<{ urls: string; username?: string; credential?: string }> = [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun1.l.google.com:19302' },
+    ];
+
+    // Try to get TURN credentials from Xirsys
+    const turnCredentials = await getXirsysTurnCredentials();
+
+    if (turnCredentials) {
+      iceServers.push(...turnCredentials);
+    }
+
+    res.json({ iceServers });
+  } catch (error) {
+    console.error('Error fetching ICE servers:', error);
+    // Return STUN-only as fallback
+    res.json({
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+      ],
+    });
   }
 });
 

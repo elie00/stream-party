@@ -2,10 +2,11 @@ import { Router } from 'express';
 import { guestAuthSchema } from '@stream-party/shared';
 import { db, schema } from '../db/index';
 import { createGuestToken } from '../middleware/auth';
+import { authLimiter } from '../middleware/rateLimiter';
 
 const router = Router();
 
-router.post('/guest', async (req, res) => {
+router.post('/guest', authLimiter, async (req, res) => {
   try {
     const result = guestAuthSchema.safeParse(req.body);
 

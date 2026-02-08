@@ -96,10 +96,15 @@ class WebTorrentService {
 
   removeTorrent(): void {
     if (this.currentTorrent && this.client) {
+      const infoHash = this.currentTorrent.infoHash;
       try {
-        this.client.remove(this.currentTorrent);
-      } catch {
-        // Torrent may already be removed
+        // Check if torrent still exists before trying to remove
+        if (this.client.get(infoHash)) {
+          this.client.remove(this.currentTorrent);
+        }
+      } catch (err) {
+        // Log warning but don't crash - torrent may have been removed elsewhere
+        console.warn('Failed to remove torrent:', err);
       }
       this.currentTorrent = null;
     }

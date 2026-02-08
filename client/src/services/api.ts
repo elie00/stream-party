@@ -52,3 +52,13 @@ export async function createRoom(name: string): Promise<{ id: string; code: stri
 export async function getRoom(code: string): Promise<{ id: string; code: string; name: string }> {
   return fetchApi(`/rooms/${code}`);
 }
+
+interface IceServer {
+  urls: string;
+  username?: string;
+  credential?: string;
+}
+
+export async function getIceServers(): Promise<{ iceServers: IceServer[] }> {
+  return fetchApi('/rooms/ice-servers');
+}
