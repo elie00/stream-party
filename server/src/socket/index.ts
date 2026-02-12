@@ -7,6 +7,7 @@ import { registerSyncHandlers } from './handlers/sync.handler';
 import { registerChatHandlers } from './handlers/chat.handler';
 import { registerRtcHandlers } from './handlers/rtc.handler';
 import { registerSfuHandlers } from './handlers/sfu.handler';
+import { registerVoiceHandlers } from './handlers/voice.handler';
 import { logger } from '../utils/logger';
 
 // Extend Socket.IO socket data type
@@ -106,6 +107,9 @@ export function createSocketServer(httpServer: HTTPServer) {
 
     // Register SFU handlers (mediasoup)
     registerSfuHandlers(io, socket);
+
+    // Register voice channel handlers
+    registerVoiceHandlers(io, socket);
 
     socket.on('disconnect', () => {
       logger.info(`User disconnected: ${user?.displayName} (${user?.userId})`);

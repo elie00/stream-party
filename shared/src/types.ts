@@ -89,6 +89,17 @@ export interface ServerToClientEvents {
   'sfu:new-producer': (data: SfuProducerInfo) => void;
   'sfu:peer-left': (data: { userId: string }) => void;
   'sfu:error': (data: { message: string }) => void;
+  // Voice channel events
+  'voice:channels': (data: VoiceChannelWithParticipants[]) => void;
+  'voice:channel-created': (data: { channel: VoiceChannel }) => void;
+  'voice:channel-deleted': (data: { channelId: string }) => void;
+  'voice:joined': (data: VoiceChannelWithParticipants) => void;
+  'voice:user-joined': (data: { channelId: string; participant: VoiceChannelParticipant }) => void;
+  'voice:user-left': (data: { channelId: string; userId: string }) => void;
+  'voice:user-speaking': (data: { channelId: string; userId: string; isSpeaking: boolean }) => void;
+  'voice:user-muted': (data: { channelId: string; userId: string; isMuted: boolean }) => void;
+  'voice:user-deafened': (data: { channelId: string; userId: string; isDeafened: boolean }) => void;
+  'voice:error': (data: { message: string }) => void;
   'error': (message: string) => void;
 }
 
@@ -122,6 +133,16 @@ export interface ClientToServerEvents {
   'sfu:resume-consumer': (data: { consumerId: string }) => void;
   'sfu:pause-consumer': (data: { consumerId: string }) => void;
   'sfu:close-producer': (data: { producerId: string }) => void;
+  // Voice channel events
+  'voice:get-channels': () => void;
+  'voice:create-channel': (data: { name: string; bitrate?: number }) => void;
+  'voice:delete-channel': (data: { channelId: string }) => void;
+  'voice:join-channel': (data: { channelId: string }) => void;
+  'voice:leave-channel': () => void;
+  'voice:push-to-talk-start': () => void;
+  'voice:push-to-talk-stop': () => void;
+  'voice:toggle-mute': () => void;
+  'voice:toggle-deafen': () => void;
 }
 
 // SFU Types
@@ -143,6 +164,32 @@ export interface SfuConsumerData {
   producerId: string;
   kind: 'audio' | 'video';
   rtpParameters: unknown;
+}
+
+// Voice Channel Types
+export interface VoiceChannel {
+  id: string;
+  roomId: string;
+  name: string;
+  position: number;
+  bitrate: number;
+  createdAt: Date;
+}
+
+export interface VoiceChannelParticipant {
+  channelId: string;
+  userId: string;
+  displayName: string;
+  socketId: string;
+  isMuted: boolean;
+  isDeafened: boolean;
+  isPushingToTalk: boolean;
+  joinedAt: Date;
+}
+
+export interface VoiceChannelWithParticipants {
+  channel: VoiceChannel;
+  participants: VoiceChannelParticipant[];
 }
 
 export interface RoomParticipant {

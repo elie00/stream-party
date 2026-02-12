@@ -36,13 +36,35 @@ export const roomParticipants = pgTable('room_participants', {
   isActive: boolean('is_active').notNull().default(true),
 });
 
+export const voiceChannels = pgTable('voice_channels', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  roomId: uuid('room_id').notNull().references(() => rooms.id),
+  name: text('name').notNull(),
+  position: integer('position').default(0),
+  bitrate: integer('bitrate').default(64000),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});
+
+export const voiceChannelParticipants = pgTable('voice_channel_participants', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  channelId: uuid('channel_id').notNull().references(() => voiceChannels.id),
+  userId: uuid('user_id').notNull().references(() => users.id),
+  socketId: text('socket_id').notNull(),
+  isMuted: boolean('is_muted').notNull().default(true),
+  isDeafened: boolean('is_deafened').notNull().default(false),
+  isPushingToTalk: boolean('is_pushing_to_talk').notNull().default(false),
+  joinedAt: timestamp('joined_at').notNull().defaultNow(),
+});
+
 // ===== Relations =====
 export const usersRelations = relations(users, ({ many }) => ({
   messages: many(messages),
+  voiceChannelParticipants: many(voiceChannelParticipants),
 }));
 
 export const roomsRelations = relations(rooms, ({ many }) => ({
   messages: many(messages),
+  voiceChannels: many(voiceChannels),
 }));
 
 export const messagesRelations = relations(messages, ({ one }) => ({
@@ -53,5 +75,24 @@ export const messagesRelations = relations(messages, ({ one }) => ({
   room: one(rooms, {
     fields: [messages.roomId],
     references: [rooms.id],
+  }),
+}));
+
+export const voiceChannelsRelations = relations(voiceChannels, ({ one, many }) => ({
+  room: one(rooms, {
+    fields: [voiceChannels.roomId],
+    references: [rooms.id],
+  }),
+  participants: many(voiceChannelParticipants),
+}));
+
+export const voiceChannelParticipantsRelations = relations(voiceChannelParticipants, ({ one }) => ({
+  channel: one(voiceChannels, {
+    fields: [voiceChannelParticipants.channelId],
+    references: [voiceChannels.id],
+  }),
+  user: one(users, {
+    fields: [voiceChannelParticipants.userId],
+    references: [users.id],
   }),
 }));
