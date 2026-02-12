@@ -1,10 +1,11 @@
 import { Server, Socket } from 'socket.io';
-import type { ClientToServerEvents, ServerToClientEvents, ChatMessage } from '@stream-party/shared';
+import type { ClientToServerEvents, ServerToClientEvents, ChatMessage, MessageEmbed } from '@stream-party/shared';
 import { MAX_CHAT_MESSAGE_LENGTH, CHAT_RATE_LIMIT } from '@stream-party/shared';
 import { db, schema } from '../../db/index';
 import { eq, desc, lt, and } from 'drizzle-orm';
 import { getRoomBySocket } from '../roomState';
 import { validateChatMessage } from '../../utils/validators';
+import { generateEmbedsForMessage } from '../../services/embedService';
 
 type TypedSocket = Socket<ClientToServerEvents, ServerToClientEvents>;
 type TypedServer = Server<ClientToServerEvents, ServerToClientEvents>;
@@ -71,10 +72,55 @@ export function registerChatHandlers(io: TypedServer, socket: TypedSocket): void
         content: message.content,
         createdAt: message.createdAt,
         user: { displayName: user.displayName },
+        reactions: [],
+        embeds: [],
       };
 
       // Broadcast to everyone in the room (including sender)
       io.to(room.code).emit('chat:message', chatMessage);
+
+      // Generate embeds asynchronously (don't block the response)
+      generateEmbedsForMessage(validation.sanitized)
+        .then(async (embedsData) => {
+          for (const embedData of embedsData) {
+            try {
+              const [embed] = await db
+                .insert(schema.messageEmbeds)
+                .values({
+                  messageId: message.id,
+                  type: embedData.type,
+                  url: embedData.url,
+                  title: embedData.title,
+                  description: embedData.description,
+                  image: embedData.image,
+                  siteName: embedData.siteName,
+                })
+                .returning();
+
+              const messageEmbed: MessageEmbed = {
+                id: embed.id,
+                messageId: embed.messageId,
+                type: embed.type as MessageEmbed['type'],
+                url: embed.url,
+                title: embed.title || undefined,
+                description: embed.description || undefined,
+                image: embed.image || undefined,
+                siteName: embed.siteName || undefined,
+                createdAt: embed.createdAt,
+              };
+
+              io.to(room.code).emit('embed:generated', {
+                messageId: message.id,
+                embed: messageEmbed,
+              });
+            } catch (embedError) {
+              console.error('Error saving embed:', embedError);
+            }
+          }
+        })
+        .catch((embedError) => {
+          console.error('Error generating embeds:', embedError);
+        });
     } catch (error) {
       console.error('Error sending chat message:', error);
       socket.emit('error', 'Failed to send message');
@@ -88,7 +134,18 @@ export function registerChatHandlers(io: TypedServer, socket: TypedSocket): void
 
       const limit = Math.min(data.limit || 50, 50);
 
-      let messages: Array<{ id: string; roomId: string; userId: string; content: string; createdAt: Date; user: { displayName: string } | null }>;
+      type MessageWithRelations = {
+        id: string;
+        roomId: string;
+        userId: string;
+        content: string;
+        createdAt: Date;
+        user: { displayName: string } | null;
+        reactions: Array<{ id: string; messageId: string; userId: string; emoji: string; createdAt: Date }>;
+        embeds: Array<{ id: string; messageId: string; type: string; url: string; title: string | null; description: string | null; image: string | null; siteName: string | null; createdAt: Date }>;
+      };
+
+      let messages: MessageWithRelations[];
 
       if (data.cursor) {
         // Cursor-based pagination: get messages older than cursor
@@ -106,6 +163,8 @@ export function registerChatHandlers(io: TypedServer, socket: TypedSocket): void
             limit,
             with: {
               user: true,
+              reactions: true,
+              embeds: true,
             },
           });
         } else {
@@ -119,6 +178,8 @@ export function registerChatHandlers(io: TypedServer, socket: TypedSocket): void
           limit,
           with: {
             user: true,
+            reactions: true,
+            embeds: true,
           },
         });
       }
@@ -131,6 +192,24 @@ export function registerChatHandlers(io: TypedServer, socket: TypedSocket): void
         content: m.content,
         createdAt: m.createdAt,
         user: { displayName: m.user?.displayName || 'Unknown' },
+        reactions: m.reactions?.map((r) => ({
+          id: r.id,
+          messageId: r.messageId,
+          userId: r.userId,
+          emoji: r.emoji,
+          createdAt: r.createdAt,
+        })) || [],
+        embeds: m.embeds?.map((e) => ({
+          id: e.id,
+          messageId: e.messageId,
+          type: e.type as MessageEmbed['type'],
+          url: e.url,
+          title: e.title || undefined,
+          description: e.description || undefined,
+          image: e.image || undefined,
+          siteName: e.siteName || undefined,
+          createdAt: e.createdAt,
+        })) || [],
       }));
 
       socket.emit('chat:history', chatMessages);

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { ChatMessage } from '@stream-party/shared';
+import type { ChatMessage, MessageReaction, MessageEmbed } from '@stream-party/shared';
 
 interface ChatState {
   messages: ChatMessage[];
@@ -9,6 +9,9 @@ interface ChatState {
   addMessage: (message: ChatMessage) => void;
   setHistory: (messages: ChatMessage[], prepend?: boolean) => void;
   setTyping: (userId: string, displayName: string, isTyping: boolean) => void;
+  addReaction: (messageId: string, reaction: MessageReaction) => void;
+  removeReaction: (messageId: string, reactionId: string) => void;
+  addEmbed: (messageId: string, embed: MessageEmbed) => void;
   clearMessages: () => void;
 }
 
@@ -55,6 +58,53 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }
       return { typingUsers: newMap };
     });
+  },
+
+  addReaction: (messageId, reaction) => {
+    set((state) => ({
+      messages: state.messages.map((msg) => {
+        if (msg.id === messageId) {
+          const reactions = msg.reactions || [];
+          // Check if reaction already exists
+          if (reactions.some((r) => r.id === reaction.id)) {
+            return msg;
+          }
+          return { ...msg, reactions: [...reactions, reaction] };
+        }
+        return msg;
+      }),
+    }));
+  },
+
+  removeReaction: (messageId, reactionId) => {
+    set((state) => ({
+      messages: state.messages.map((msg) => {
+        if (msg.id === messageId) {
+          const reactions = msg.reactions || [];
+          return {
+            ...msg,
+            reactions: reactions.filter((r) => r.id !== reactionId),
+          };
+        }
+        return msg;
+      }),
+    }));
+  },
+
+  addEmbed: (messageId, embed) => {
+    set((state) => ({
+      messages: state.messages.map((msg) => {
+        if (msg.id === messageId) {
+          const embeds = msg.embeds || [];
+          // Check if embed already exists
+          if (embeds.some((e) => e.id === embed.id)) {
+            return msg;
+          }
+          return { ...msg, embeds: [...embeds, embed] };
+        }
+        return msg;
+      }),
+    }));
   },
 
   clearMessages: () => {

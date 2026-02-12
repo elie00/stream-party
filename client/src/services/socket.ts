@@ -1,6 +1,7 @@
 import { io, Socket } from 'socket.io-client';
 import type { ServerToClientEvents, ClientToServerEvents } from '@stream-party/shared';
 import { useRoomStore } from '../stores/roomStore';
+import { useChatStore } from '../stores/chatStore';
 import { useToastStore } from '../components/ui/Toast';
 
 type TypedSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
@@ -22,6 +23,7 @@ export function getSocket(): TypedSocket {
     // Attach reconnection listeners once per socket instance
     if (!reconnectListenersAttached) {
       attachReconnectListeners(socket);
+      attachChatListeners(socket);
       reconnectListenersAttached = true;
     }
   }
@@ -58,6 +60,25 @@ function attachReconnectListeners(s: TypedSocket) {
     if (roomStore.room) {
       // connect_error fires repeatedly; the disconnect toast already covers this
     }
+  });
+}
+
+function attachChatListeners(s: TypedSocket) {
+  // Listen for reaction events
+  s.on('reaction:added', (data) => {
+    const chatStore = useChatStore.getState();
+    chatStore.addReaction(data.messageId, data.reaction);
+  });
+
+  s.on('reaction:removed', (data) => {
+    const chatStore = useChatStore.getState();
+    chatStore.removeReaction(data.messageId, data.reactionId);
+  });
+
+  // Listen for embed events
+  s.on('embed:generated', (data) => {
+    const chatStore = useChatStore.getState();
+    chatStore.addEmbed(data.messageId, data.embed);
   });
 }
 

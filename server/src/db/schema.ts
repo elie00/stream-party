@@ -28,6 +28,26 @@ export const messages = pgTable('messages', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
 });
 
+export const messageReactions = pgTable('message_reactions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  messageId: uuid('message_id').notNull().references(() => messages.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id),
+  emoji: text('emoji').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});
+
+export const messageEmbeds = pgTable('message_embeds', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  messageId: uuid('message_id').notNull().references(() => messages.id, { onDelete: 'cascade' }),
+  type: text('type').notNull(), // 'link', 'image', 'video', 'article'
+  url: text('url').notNull(),
+  title: text('title'),
+  description: text('description'),
+  image: text('image'),
+  siteName: text('site_name'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});
+
 export const roomParticipants = pgTable('room_participants', {
   id: uuid('id').primaryKey().defaultRandom(),
   roomId: uuid('room_id').notNull().references(() => rooms.id),
@@ -67,7 +87,7 @@ export const roomsRelations = relations(rooms, ({ many }) => ({
   voiceChannels: many(voiceChannels),
 }));
 
-export const messagesRelations = relations(messages, ({ one }) => ({
+export const messagesRelations = relations(messages, ({ one, many }) => ({
   user: one(users, {
     fields: [messages.userId],
     references: [users.id],
@@ -75,6 +95,26 @@ export const messagesRelations = relations(messages, ({ one }) => ({
   room: one(rooms, {
     fields: [messages.roomId],
     references: [rooms.id],
+  }),
+  reactions: many(messageReactions),
+  embeds: many(messageEmbeds),
+}));
+
+export const messageReactionsRelations = relations(messageReactions, ({ one }) => ({
+  message: one(messages, {
+    fields: [messageReactions.messageId],
+    references: [messages.id],
+  }),
+  user: one(users, {
+    fields: [messageReactions.userId],
+    references: [users.id],
+  }),
+}));
+
+export const messageEmbedsRelations = relations(messageEmbeds, ({ one }) => ({
+  message: one(messages, {
+    fields: [messageEmbeds.messageId],
+    references: [messages.id],
   }),
 }));
 

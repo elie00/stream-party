@@ -44,6 +44,32 @@ export interface Message {
 
 export interface ChatMessage extends Message {
   user: { displayName: string };
+  reactions?: MessageReaction[];
+  embeds?: MessageEmbed[];
+}
+
+// ===== Message Reaction =====
+export interface MessageReaction {
+  id: string;
+  messageId: string;
+  userId: string;
+  emoji: string;
+  createdAt: Date;
+}
+
+// ===== Message Embed =====
+export type EmbedType = 'link' | 'image' | 'video' | 'article';
+
+export interface MessageEmbed {
+  id: string;
+  messageId: string;
+  type: EmbedType;
+  url: string;
+  title?: string;
+  description?: string;
+  image?: string;
+  siteName?: string;
+  createdAt: Date;
 }
 
 // ===== Sync =====
@@ -100,6 +126,11 @@ export interface ServerToClientEvents {
   'voice:user-muted': (data: { channelId: string; userId: string; isMuted: boolean }) => void;
   'voice:user-deafened': (data: { channelId: string; userId: string; isDeafened: boolean }) => void;
   'voice:error': (data: { message: string }) => void;
+  // Reaction events
+  'reaction:added': (data: { messageId: string; reaction: MessageReaction }) => void;
+  'reaction:removed': (data: { messageId: string; reactionId: string }) => void;
+  // Embed events
+  'embed:generated': (data: { messageId: string; embed: MessageEmbed }) => void;
   'error': (message: string) => void;
 }
 
@@ -143,6 +174,11 @@ export interface ClientToServerEvents {
   'voice:push-to-talk-stop': () => void;
   'voice:toggle-mute': () => void;
   'voice:toggle-deafen': () => void;
+  // Reaction events
+  'reaction:add': (data: { messageId: string; emoji: string }) => void;
+  'reaction:remove': (data: { messageId: string; reactionId: string }) => void;
+  // Embed events
+  'embed:generate': (data: { messageId: string; url: string }) => void;
 }
 
 // SFU Types
@@ -216,3 +252,7 @@ export const MAX_PARTICIPANTS = 6;
 export const SYNC_INTERVAL_MS = 1500;
 export const MAX_CHAT_MESSAGE_LENGTH = 500;
 export const CHAT_RATE_LIMIT = { maxMessages: 5, windowMs: 3000 };
+export const MAX_REACTIONS_PER_MESSAGE = 20;
+
+// Common emoji list for reaction picker
+export const REACTION_EMOJIS = ['👍', '👎', '❤️', '😂', '😮', '😢', '😡', '🎉', '🔥', '👀'];

@@ -35,6 +35,16 @@ export function ChatPanel({ onClose }: ChatPanelProps) {
     socket.emit('chat:history', { cursor: oldestCursor, limit: 50 });
   }, [hasMore, oldestCursor]);
 
+  const handleAddReaction = useCallback((messageId: string, emoji: string) => {
+    const socket = getSocket();
+    socket.emit('reaction:add', { messageId, emoji });
+  }, []);
+
+  const handleRemoveReaction = useCallback((messageId: string, reactionId: string) => {
+    const socket = getSocket();
+    socket.emit('reaction:remove', { messageId, reactionId });
+  }, []);
+
   return (
     <div className="w-80 bg-[#1a1a1a] border-l border-[#333] flex flex-col">
       {/* Header */}
@@ -62,6 +72,8 @@ export function ChatPanel({ onClose }: ChatPanelProps) {
         currentUserId={userId}
         hasMore={hasMore}
         onLoadMore={handleLoadMore}
+        onAddReaction={handleAddReaction}
+        onRemoveReaction={handleRemoveReaction}
       />
 
       {/* Typing indicator */}

@@ -7,9 +7,18 @@ interface MessageListProps {
   currentUserId: string | null;
   hasMore: boolean;
   onLoadMore: () => void;
+  onAddReaction: (messageId: string, emoji: string) => void;
+  onRemoveReaction: (messageId: string, reactionId: string) => void;
 }
 
-export function MessageList({ messages, currentUserId, hasMore, onLoadMore }: MessageListProps) {
+export function MessageList({
+  messages,
+  currentUserId,
+  hasMore,
+  onLoadMore,
+  onAddReaction,
+  onRemoveReaction,
+}: MessageListProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const isNearBottomRef = useRef(true);
@@ -75,6 +84,9 @@ export function MessageList({ messages, currentUserId, hasMore, onLoadMore }: Me
             key={msg.id}
             message={msg}
             isOwn={msg.userId === currentUserId}
+            currentUserId={currentUserId || ''}
+            onAddReaction={onAddReaction}
+            onRemoveReaction={onRemoveReaction}
           />
         ))}
       </div>
