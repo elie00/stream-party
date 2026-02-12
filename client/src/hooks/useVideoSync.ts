@@ -1,75 +1,57 @@
-import { useRef, useCallback, useEffect } from 'react';
-import type Player from 'video.js/dist/types/player';
-import { syncEngine } from '../services/syncEngine';
-
 /**
- * Hook for managing video synchronization between host and peers.
- * 
- * - Host: broadcasts state every 1.5s and emits discrete events (play/pause/seek)
- * - Peers: receive state and apply drift correction
+ * Custom hook for managing video synchronization
  */
-export function useVideoSync(isHost: boolean) {
-    const playerRef = useRef<Player | null>(null);
+import { useCallback, useEffect, useRef } from 'react';
+import { syncEngine } from '../services/syncEngine';
+import type Player from 'video.js/dist/types/player';
 
-    // Update sync engine when host status changes
-    useEffect(() => {
-        syncEngine.setHost(isHost);
-    }, [isHost]);
+interface UseVideoSyncOptions {
+  isHost: boolean;
+}
 
-    // Set player reference in sync engine
-    const setPlayer = useCallback((player: Player | null) => {
-        playerRef.current = player;
-        if (player) {
-            syncEngine.setPlayer(player);
-        }
-    }, []);
+interface UseVideoSyncReturn {
+  setPlayer: (player: Player) => void;
+  handlePlay: () => void;
+  handlePause: () => void;
+  handleSeeked: (time: number) => void;
+}
 
-    // Host-only event emitters
-    const emitPlay = useCallback(() => {
-        if (isHost) {
-            syncEngine.emitPlay();
-        }
-    }, [isHost]);
+export function useVideoSync(options: UseVideoSyncOptions): UseVideoSyncReturn {
+  const { isHost } = options;
+  const playerRef = useRef<Player | null>(null);
 
-    const emitPause = useCallback(() => {
-        if (isHost) {
-            syncEngine.emitPause();
-        }
-    }, [isHost]);
+  // Keep SyncEngine in sync with host status
+  useEffect(() => {
+    syncEngine.setHost(isHost);
+  }, [isHost]);
 
-    const emitSeek = useCallback(
-        (time: number) => {
-            if (isHost) {
-                syncEngine.emitSeek(time);
-            }
-        },
-        [isHost],
-    );
+  const setPlayer = useCallback((player: Player) => {
+    playerRef.current = player;
+    syncEngine.setPlayer(player);
+  }, []);
 
-    // Request initial sync (for late joiners)
-    const requestSync = useCallback(() => {
-        syncEngine.requestSync();
-    }, []);
+  const handlePlay = useCallback(() => {
+    if (!isHost || syncEngine.isIgnoringEvents()) return;
+    syncEngine.emitPlay();
+  }, [isHost]);
 
-    // Check if engine is ignoring events (during seek operations)
-    const isIgnoringEvents = useCallback(() => {
-        return syncEngine.isIgnoringEvents();
-    }, []);
+  const handlePause = useCallback(() => {
+    if (!isHost || syncEngine.isIgnoringEvents()) return;
+    syncEngine.emitPause();
+  }, [isHost]);
 
-    // Cleanup on unmount
-    useEffect(() => {
-        return () => {
-            syncEngine.destroy();
-        };
-    }, []);
+  const handleSeeked = useCallback(
+    (time: number) => {
+      if (!isHost || syncEngine.isIgnoringEvents()) return;
+      syncEngine.emitSeek(time);
+    },
+    [isHost]
+  );
 
-    return {
-        playerRef,
-        setPlayer,
-        emitPlay,
-        emitPause,
-        emitSeek,
-        requestSync,
-        isIgnoringEvents,
-    };
+  return {
+    setPlayer,
+    handlePlay,
+    handlePause,
+    handleSeeked,
+  };
 }
