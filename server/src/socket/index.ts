@@ -10,6 +10,7 @@ import { registerSfuHandlers } from './handlers/sfu.handler';
 import { registerVoiceHandlers } from './handlers/voice.handler';
 import { registerReactionHandlers } from './handlers/reaction.handler';
 import { registerEmbedHandlers } from './handlers/embed.handler';
+import { registerServerHandlers } from './handlers/server.handler';
 import { logger } from '../utils/logger';
 
 // Extend Socket.IO socket data type
@@ -118,6 +119,9 @@ export function createSocketServer(httpServer: HTTPServer) {
 
     // Register embed handlers
     registerEmbedHandlers(io, socket);
+
+    // Register server handlers
+    registerServerHandlers(io, socket);
 
     socket.on('disconnect', () => {
       logger.info(`User disconnected: ${user?.displayName} (${user?.userId})`);

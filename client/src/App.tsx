@@ -3,6 +3,7 @@ import { HomePage } from './pages/HomePage';
 import { RoomPage } from './pages/RoomPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import DiscoverPage from './pages/DiscoverPage';
+import { ServersPage } from './pages/ServersPage';
 import { Toaster } from './components/ui/Toast';
 import { ErrorBoundary } from './components/error/ErrorBoundary';
 
@@ -14,6 +15,7 @@ export default function App() {
           <Route path="/" element={<HomePage />} />
           <Route path="/discover" element={<DiscoverPage />} />
           <Route path="/room/:code" element={<RoomPage />} />
+          <Route path="/servers" element={<ServersPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
         <Toaster />

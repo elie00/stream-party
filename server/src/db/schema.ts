@@ -76,6 +76,35 @@ export const voiceChannelParticipants = pgTable('voice_channel_participants', {
   joinedAt: timestamp('joined_at').notNull().defaultNow(),
 });
 
+// ===== Servers / Communities =====
+export const servers = pgTable('servers', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: text('name').notNull(),
+  icon: text('icon'), // URL de l'icône
+  description: text('description'),
+  ownerId: uuid('owner_id').notNull().references(() => users.id),
+  inviteCode: text('invite_code').notNull().unique(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});
+
+export const serverMembers = pgTable('server_members', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  serverId: uuid('server_id').notNull().references(() => servers.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id),
+  role: text('role').notNull().default('member'), // 'owner', 'admin', 'moderator', 'member'
+  joinedAt: timestamp('joined_at').notNull().defaultNow(),
+});
+
+export const channels = pgTable('channels', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  serverId: uuid('server_id').notNull().references(() => servers.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  type: text('type').notNull(), // 'text', 'voice'
+  position: integer('position').default(0),
+  topic: text('topic'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});
+
 // ===== Relations =====
 export const usersRelations = relations(users, ({ many }) => ({
   messages: many(messages),
@@ -134,5 +163,33 @@ export const voiceChannelParticipantsRelations = relations(voiceChannelParticipa
   user: one(users, {
     fields: [voiceChannelParticipants.userId],
     references: [users.id],
+  }),
+}));
+
+// Server relations
+export const serversRelations = relations(servers, ({ one, many }) => ({
+  owner: one(users, {
+    fields: [servers.ownerId],
+    references: [users.id],
+  }),
+  members: many(serverMembers),
+  channels: many(channels),
+}));
+
+export const serverMembersRelations = relations(serverMembers, ({ one }) => ({
+  server: one(servers, {
+    fields: [serverMembers.serverId],
+    references: [servers.id],
+  }),
+  user: one(users, {
+    fields: [serverMembers.userId],
+    references: [users.id],
+  }),
+}));
+
+export const channelsRelations = relations(channels, ({ one }) => ({
+  server: one(servers, {
+    fields: [channels.serverId],
+    references: [servers.id],
   }),
 }));

@@ -131,6 +131,14 @@ export interface ServerToClientEvents {
   'reaction:removed': (data: { messageId: string; reactionId: string }) => void;
   // Embed events
   'embed:generated': (data: { messageId: string; embed: MessageEmbed }) => void;
+  // Server events
+  'server:joined': (data: ServerWithDetails) => void;
+  'server:left': (data: { serverId: string }) => void;
+  'server:member-joined': (data: { serverId: string; member: ServerMemberWithUser }) => void;
+  'server:member-left': (data: { serverId: string; userId: string }) => void;
+  'server:channel-created': (data: { serverId: string; channel: Channel }) => void;
+  'server:channel-deleted': (data: { serverId: string; channelId: string }) => void;
+  'server:error': (data: { message: string }) => void;
   'error': (message: string) => void;
 }
 
@@ -179,6 +187,9 @@ export interface ClientToServerEvents {
   'reaction:remove': (data: { messageId: string; reactionId: string }) => void;
   // Embed events
   'embed:generate': (data: { messageId: string; url: string }) => void;
+  // Server events
+  'server:join': (data: { serverId: string }, cb: (res: { success: boolean; error?: string }) => void) => void;
+  'server:leave': (data: { serverId: string }) => void;
 }
 
 // SFU Types
@@ -256,3 +267,66 @@ export const MAX_REACTIONS_PER_MESSAGE = 20;
 
 // Common emoji list for reaction picker
 export const REACTION_EMOJIS = ['👍', '👎', '❤️', '😂', '😮', '😢', '😡', '🎉', '🔥', '👀'];
+
+// ===== Server / Community =====
+export interface Server {
+  id: string;
+  name: string;
+  icon: string | null;
+  description: string | null;
+  ownerId: string;
+  inviteCode: string;
+  createdAt: Date;
+}
+
+export type ServerRole = 'owner' | 'admin' | 'moderator' | 'member';
+
+export interface ServerMember {
+  id: string;
+  serverId: string;
+  userId: string;
+  role: ServerRole;
+  joinedAt: Date;
+}
+
+export interface ServerMemberWithUser extends ServerMember {
+  user: { displayName: string };
+}
+
+export type ChannelType = 'text' | 'voice';
+
+export interface Channel {
+  id: string;
+  serverId: string;
+  name: string;
+  type: ChannelType;
+  position: number;
+  topic: string | null;
+  createdAt: Date;
+}
+
+export interface ServerWithDetails extends Server {
+  members: ServerMemberWithUser[];
+  channels: Channel[];
+}
+
+// ===== Server Validation Schemas =====
+export const createServerSchema = z.object({
+  name: z.string().min(1).max(50).trim(),
+  icon: z.string().url().optional(),
+  description: z.string().max(200).optional(),
+});
+
+export const joinServerSchema = z.object({
+  inviteCode: z.string().length(8),
+});
+
+export const createChannelSchema = z.object({
+  name: z.string().min(1).max(30).trim(),
+  type: z.enum(['text', 'voice']),
+  topic: z.string().max(100).optional(),
+});
+
+// ===== Server Constants =====
+export const SERVER_INVITE_CODE_ALPHABET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz';
+export const SERVER_INVITE_CODE_LENGTH = 8;

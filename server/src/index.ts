@@ -6,6 +6,7 @@ import { createServer } from 'http';
 import authRoutes from './routes/auth';
 import roomRoutes from './routes/rooms';
 import addonRoutes from './routes/addons';
+import serverRoutes from './routes/servers';
 import { createSocketServer } from './socket/index';
 import { apiLimiter } from './middleware/rateLimiter';
 import { mediasoupService } from './services/mediasoup';
@@ -77,6 +78,7 @@ app.get('/api/health', (_req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/rooms', roomRoutes);
 app.use('/api/addons', addonRoutes);
+app.use('/api/servers', serverRoutes);
 
 // Create HTTP server
 const httpServer = createServer(app);
