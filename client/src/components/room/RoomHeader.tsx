@@ -1,6 +1,7 @@
 /**
  * Room header component with room info, call controls, and actions
  */
+import type { RoomParticipant } from '@stream-party/shared';
 import { ParticipantList } from './ParticipantList';
 import { CallControls } from '../call/CallControls';
 import { Button } from '../ui/Button';
@@ -9,12 +10,7 @@ interface RoomHeaderProps {
   roomName: string;
   roomCode: string;
   participantsCount: number;
-  participants: Array<{
-    userId: string;
-    displayName: string;
-    isHost: boolean;
-    inCall: boolean;
-  }>;
+  participants: RoomParticipant[];
   hostId: string;
   inCall: boolean;
   audioEnabled: boolean;
@@ -25,7 +21,6 @@ interface RoomHeaderProps {
   onToggleVideo: () => void;
   onShare: () => void;
   onToggleChat: () => void;
-  isChatOpen: boolean;
 }
 
 export function RoomHeader({
@@ -43,7 +38,6 @@ export function RoomHeader({
   onToggleVideo,
   onShare,
   onToggleChat,
-  isChatOpen,
 }: RoomHeaderProps) {
   return (
     <div className="bg-[#1a1a1a] border-b border-[#333] px-4 md:px-6 py-3 md:py-4 flex items-center justify-between flex-shrink-0">
