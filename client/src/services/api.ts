@@ -62,3 +62,58 @@ interface IceServer {
 export async function getIceServers(): Promise<{ iceServers: IceServer[] }> {
   return fetchApi('/rooms/ice-servers');
 }
+
+// ============ Addon API ============
+
+import type {
+  AddonsResponse,
+  CatalogResponse,
+  MetaResponse,
+  AggregatedStreamResponse,
+} from '../types/stremio';
+
+export async function getAddons(): Promise<AddonsResponse> {
+  return fetchApi('/addons');
+}
+
+export async function installAddon(url: string): Promise<{ id: string; name: string }> {
+  return fetchApi('/addons', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url }),
+  });
+}
+
+export async function uninstallAddon(id: string): Promise<void> {
+  return fetchApi(`/addons/${id}`, { method: 'DELETE' });
+}
+
+export async function getCatalog(
+  addonId: string,
+  type: string,
+  catalogId: string,
+  extra?: { search?: string; skip?: string; genre?: string }
+): Promise<CatalogResponse> {
+  const params = new URLSearchParams();
+  if (extra?.search) params.set('search', extra.search);
+  if (extra?.skip) params.set('skip', extra.skip);
+  if (extra?.genre) params.set('genre', extra.genre);
+
+  const query = params.toString() ? `?${params}` : '';
+  return fetchApi(`/addons/${addonId}/catalog/${type}/${catalogId}${query}`);
+}
+
+export async function getMeta(
+  addonId: string,
+  type: string,
+  contentId: string
+): Promise<MetaResponse> {
+  return fetchApi(`/addons/${addonId}/meta/${type}/${contentId}`);
+}
+
+export async function getStreams(
+  type: string,
+  contentId: string
+): Promise<AggregatedStreamResponse> {
+  return fetchApi(`/addons/aggregate/stream/${type}/${contentId}`);
+}

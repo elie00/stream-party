@@ -1,21 +1,67 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import { createServer } from 'http';
 import authRoutes from './routes/auth';
 import roomRoutes from './routes/rooms';
+import addonRoutes from './routes/addons';
 import { createSocketServer } from './socket/index';
 import { apiLimiter } from './middleware/rateLimiter';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Middleware
-app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:5173',
-  credentials: true,
+// Security headers with Helmet
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"], // Needed for Video.js
+      imgSrc: ["'self'", "data:", "blob:", "https:"],
+      mediaSrc: ["'self'", "blob:", "data:"], // For WebTorrent streaming
+      connectSrc: [
+        "'self'",
+        "wss:", // WebSocket connections
+        "https:", // HTTPS API calls
+        "blob:", // Blob URLs
+        "data:", // Data URLs
+      ],
+      fontSrc: ["'self'", "data:"],
+      objectSrc: ["'none'"],
+      frameSrc: ["'none'"],
+    },
+  },
+  crossOriginEmbedderPolicy: false, // Needed for media streaming
+  crossOriginResourcePolicy: { policy: "cross-origin" }, // For CORS media
 }));
-app.use(express.json());
+
+// CORS configuration
+const allowedOrigins = [
+  process.env.CLIENT_URL || 'http://localhost:5173',
+  'http://localhost:5173',
+  'http://localhost:3000',
+];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      console.warn(`CORS blocked origin: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+}));
+
+app.use(express.json({ limit: '10kb' })); // Limit JSON payload size
 
 // Apply global rate limiter to all API routes
 app.use('/api', apiLimiter);
@@ -28,6 +74,7 @@ app.get('/api/health', (_req, res) => {
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/rooms', roomRoutes);
+app.use('/api/addons', addonRoutes);
 
 // Create HTTP server
 const httpServer = createServer(app);

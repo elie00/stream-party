@@ -3,6 +3,7 @@ import { ClientToServerEvents, ServerToClientEvents } from '@stream-party/shared
 import { db, schema } from '../../db/index';
 import { eq } from 'drizzle-orm';
 import * as roomState from '../roomState';
+import { isValidMagnetUri, isValidRoomCode, isValidFileIndex } from '../../utils/validators';
 
 type TypedSocket = Socket<ClientToServerEvents, ServerToClientEvents>;
 type TypedServer = Server<ClientToServerEvents, ServerToClientEvents>;
@@ -17,6 +18,12 @@ export function registerRoomHandlers(io: TypedServer, socket: TypedSocket) {
   socket.on('room:join', async (data, callback) => {
     try {
       const { code } = data;
+
+      // Validate room code format
+      if (!isValidRoomCode(code)) {
+        callback({ success: false, error: 'Invalid room code format' });
+        return;
+      }
 
       // Verify room exists in database and is active
       const room = await db.query.rooms.findFirst({
@@ -89,6 +96,13 @@ export function registerRoomHandlers(io: TypedServer, socket: TypedSocket) {
       }
 
       const { magnetUri } = data;
+
+      // Validate magnet URI
+      if (!isValidMagnetUri(magnetUri)) {
+        socket.emit('error', 'Invalid magnet URI format');
+        return;
+      }
+
       roomState.setMagnet(room.code, magnetUri);
 
       // Update database
@@ -123,6 +137,13 @@ export function registerRoomHandlers(io: TypedServer, socket: TypedSocket) {
       }
 
       const { fileIndex } = data;
+
+      // Validate file index (assuming max 100 files in a torrent)
+      if (!isValidFileIndex(fileIndex, 100)) {
+        socket.emit('error', 'Invalid file index');
+        return;
+      }
+
       roomState.setFileIndex(room.code, fileIndex);
 
       // Update database

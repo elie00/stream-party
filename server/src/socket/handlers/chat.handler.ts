@@ -4,6 +4,7 @@ import { MAX_CHAT_MESSAGE_LENGTH, CHAT_RATE_LIMIT } from '@stream-party/shared';
 import { db, schema } from '../../db/index';
 import { eq, desc, lt, and } from 'drizzle-orm';
 import { getRoomBySocket } from '../roomState';
+import { validateChatMessage } from '../../utils/validators';
 
 type TypedSocket = Socket<ClientToServerEvents, ServerToClientEvents>;
 type TypedServer = Server<ClientToServerEvents, ServerToClientEvents>;
@@ -38,9 +39,12 @@ export function registerChatHandlers(io: TypedServer, socket: TypedSocket): void
       const room = getRoomBySocket(socket.id);
       if (!room) return;
 
-      // Validate content
-      const content = data.content?.trim();
-      if (!content || content.length > MAX_CHAT_MESSAGE_LENGTH) return;
+      // Validate and sanitize content
+      const validation = validateChatMessage(data.content, MAX_CHAT_MESSAGE_LENGTH);
+      if (!validation.isValid) {
+        socket.emit('error', validation.error || 'Invalid message');
+        return;
+      }
 
       // Rate limit check
       if (isRateLimited(socket.id)) {
@@ -55,7 +59,7 @@ export function registerChatHandlers(io: TypedServer, socket: TypedSocket): void
         .values({
           roomId: room.dbRoomId,
           userId: user.userId,
-          content,
+          content: validation.sanitized,
         })
         .returning();
 

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Telescope } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { loginAsGuest, createRoom } from '../services/api';
 import { useToastStore } from '../components/ui/Toast';
@@ -87,7 +88,15 @@ export function HomePage() {
       <div className="w-full max-w-md bg-[#1a1a1a] border border-[#333] rounded-xl p-8">
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-purple-600 mb-2">StreamParty</h1>
-          <p className="text-[#a0a0a0] text-sm">Watch together in sync</p>
+          <p className="text-[#a0a0a0] text-sm mb-6">Watch together in sync</p>
+
+          <Button
+            onClick={() => navigate('/discover')}
+            className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 transition-all duration-300 transform hover:scale-[1.02]"
+          >
+            <Telescope className="w-4 h-4 mr-2" />
+            Discover Content
+          </Button>
         </div>
 
         {/* Display Name Input */}
