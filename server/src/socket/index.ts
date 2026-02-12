@@ -6,6 +6,8 @@ import { registerRoomHandlers } from './handlers/room.handler';
 import { registerSyncHandlers } from './handlers/sync.handler';
 import { registerChatHandlers } from './handlers/chat.handler';
 import { registerRtcHandlers } from './handlers/rtc.handler';
+import { registerSfuHandlers } from './handlers/sfu.handler';
+import { logger } from '../utils/logger';
 
 // Extend Socket.IO socket data type
 declare module 'socket.io' {
@@ -88,7 +90,7 @@ export function createSocketServer(httpServer: HTTPServer) {
   // Register event handlers
   io.on('connection', (socket) => {
     const user = socket.data.user;
-    console.log(`User connected: ${user?.displayName} (${user?.userId})`);
+    logger.info(`User connected: ${user?.displayName} (${user?.userId})`);
 
     // Register room handlers
     registerRoomHandlers(io, socket);
@@ -99,11 +101,14 @@ export function createSocketServer(httpServer: HTTPServer) {
     // Register chat handlers
     registerChatHandlers(io, socket);
 
-    // Register WebRTC signaling handlers
+    // Register WebRTC signaling handlers (legacy mesh)
     registerRtcHandlers(io, socket);
 
+    // Register SFU handlers (mediasoup)
+    registerSfuHandlers(io, socket);
+
     socket.on('disconnect', () => {
-      console.log(`User disconnected: ${user?.displayName} (${user?.userId})`);
+      logger.info(`User disconnected: ${user?.displayName} (${user?.userId})`);
     });
   });
 

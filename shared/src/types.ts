@@ -77,6 +77,18 @@ export interface ServerToClientEvents {
   'rtc:ice-candidate': (data: { from: string; signal: unknown }) => void;
   'rtc:user-joined-call': (userId: string) => void;
   'rtc:user-left-call': (userId: string) => void;
+  // SFU events
+  'sfu:joined': (data: { rtpCapabilities: unknown; producers: SfuProducerInfo[] }) => void;
+  'sfu:transport-created': (data: SfuTransportData) => void;
+  'sfu:transport-connected': (data: { transportId: string }) => void;
+  'sfu:produced': (data: { producerId: string }) => void;
+  'sfu:consumed': (data: SfuConsumerData) => void;
+  'sfu:consumer-resumed': (data: { consumerId: string }) => void;
+  'sfu:consumer-paused': (data: { consumerId: string }) => void;
+  'sfu:producer-closed': (data: { producerId: string }) => void;
+  'sfu:new-producer': (data: SfuProducerInfo) => void;
+  'sfu:peer-left': (data: { userId: string }) => void;
+  'sfu:error': (data: { message: string }) => void;
   'error': (message: string) => void;
 }
 
@@ -100,6 +112,37 @@ export interface ClientToServerEvents {
   'rtc:ice-candidate': (data: { to: string; signal: unknown }) => void;
   'rtc:join-call': () => void;
   'rtc:leave-call': () => void;
+  // SFU events
+  'sfu:join': () => void;
+  'sfu:leave': () => void;
+  'sfu:create-transport': () => void;
+  'sfu:connect-transport': (data: { transportId: string; dtlsParameters: unknown }) => void;
+  'sfu:produce': (data: { transportId: string; kind: 'audio' | 'video'; rtpParameters: unknown; appData?: unknown }) => void;
+  'sfu:consume': (data: { transportId: string; producerId: string; rtpCapabilities: unknown }) => void;
+  'sfu:resume-consumer': (data: { consumerId: string }) => void;
+  'sfu:pause-consumer': (data: { consumerId: string }) => void;
+  'sfu:close-producer': (data: { producerId: string }) => void;
+}
+
+// SFU Types
+export interface SfuProducerInfo {
+  producerId: string;
+  kind: 'audio' | 'video';
+  userId: string;
+}
+
+export interface SfuTransportData {
+  transportId: string;
+  iceParameters: unknown;
+  iceCandidates: unknown[];
+  dtlsParameters: unknown;
+}
+
+export interface SfuConsumerData {
+  consumerId: string;
+  producerId: string;
+  kind: 'audio' | 'video';
+  rtpParameters: unknown;
 }
 
 export interface RoomParticipant {

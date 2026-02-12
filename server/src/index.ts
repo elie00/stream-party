@@ -8,6 +8,8 @@ import roomRoutes from './routes/rooms';
 import addonRoutes from './routes/addons';
 import { createSocketServer } from './socket/index';
 import { apiLimiter } from './middleware/rateLimiter';
+import { mediasoupService } from './services/mediasoup';
+import { logger } from './utils/logger';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -82,8 +84,41 @@ const httpServer = createServer(app);
 // Attach Socket.IO
 const io = createSocketServer(httpServer);
 
-// Start server
-httpServer.listen(PORT, () => {
-  console.log(`StreamParty server running on port ${PORT}`);
-  console.log(`Client URL: ${process.env.CLIENT_URL || 'http://localhost:5173'}`);
+// Initialize mediasoup SFU
+async function startServer() {
+  try {
+    // Initialize mediasoup workers
+    await mediasoupService.initialize();
+    mediasoupService.setSocketServer(io);
+
+    // Start server
+    httpServer.listen(PORT, () => {
+      logger.info(`StreamParty server running on port ${PORT}`);
+      logger.info(`Client URL: ${process.env.CLIENT_URL || 'http://localhost:5173'}`);
+    });
+  } catch (error) {
+    logger.error('Failed to start server', { error: error instanceof Error ? error.message : 'Unknown error' });
+    process.exit(1);
+  }
+}
+
+// Graceful shutdown
+process.on('SIGTERM', async () => {
+  logger.info('SIGTERM received, shutting down gracefully...');
+  await mediasoupService.close();
+  httpServer.close(() => {
+    logger.info('Server closed');
+    process.exit(0);
+  });
 });
+
+process.on('SIGINT', async () => {
+  logger.info('SIGINT received, shutting down gracefully...');
+  await mediasoupService.close();
+  httpServer.close(() => {
+    logger.info('Server closed');
+    process.exit(0);
+  });
+});
+
+startServer();
