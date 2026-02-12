@@ -7,10 +7,13 @@ import authRoutes from './routes/auth';
 import roomRoutes from './routes/rooms';
 import addonRoutes from './routes/addons';
 import serverRoutes from './routes/servers';
+import fileRoutes from './routes/files';
 import { createSocketServer } from './socket/index';
 import { apiLimiter } from './middleware/rateLimiter';
 import { mediasoupService } from './services/mediasoup';
+import { fileStorageService } from './services/fileStorage';
 import { logger } from './utils/logger';
+import path from 'path';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -79,6 +82,15 @@ app.use('/api/auth', authRoutes);
 app.use('/api/rooms', roomRoutes);
 app.use('/api/addons', addonRoutes);
 app.use('/api/servers', serverRoutes);
+app.use('/api/files', fileRoutes);
+
+// Serve uploaded files statically
+const UPLOAD_DIR = process.env.UPLOAD_DIR || './uploads';
+app.use('/uploads', express.static(UPLOAD_DIR, {
+  setHeaders: (res) => {
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  },
+}));
 
 // Create HTTP server
 const httpServer = createServer(app);
@@ -89,6 +101,9 @@ const io = createSocketServer(httpServer);
 // Initialize mediasoup SFU
 async function startServer() {
   try {
+    // Initialize file storage
+    await fileStorageService.init();
+    
     // Initialize mediasoup workers
     await mediasoupService.initialize();
     mediasoupService.setSocketServer(io);

@@ -330,3 +330,56 @@ export const createChannelSchema = z.object({
 // ===== Server Constants =====
 export const SERVER_INVITE_CODE_ALPHABET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz';
 export const SERVER_INVITE_CODE_LENGTH = 8;
+
+// ===== File Attachment =====
+export type FileAttachmentType = 'upload' | 'torrent';
+
+export interface FileAttachment {
+  id: string;
+  messageId: string | null;
+  uploaderId: string;
+  filename: string;
+  originalName: string;
+  mimeType: string;
+  size: number;
+  type: FileAttachmentType;
+  url: string | null;
+  magnetUri: string | null;
+  thumbnailPath: string | null;
+  createdAt: Date;
+}
+
+export interface FileAttachmentWithUploader extends FileAttachment {
+  uploader: { displayName: string };
+}
+
+// ===== File Upload Constants =====
+export const MAX_FILE_UPLOAD_SIZE = 10 * 1024 * 1024; // 10MB
+export const ALLOWED_FILE_MIME_TYPES = [
+  // Images
+  'image/jpeg',
+  'image/png',
+  'image/gif',
+  'image/webp',
+  'image/svg+xml',
+  // Videos
+  'video/mp4',
+  'video/webm',
+  'video/quicktime',
+  'video/x-msvideo',
+  // Documents
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'text/plain',
+  'text/csv',
+  // Archives
+  'application/zip',
+  'application/x-rar-compressed',
+  'application/x-7z-compressed',
+];
+
+export const IMAGE_MIME_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+export const VIDEO_MIME_TYPES = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo'];

@@ -105,6 +105,22 @@ export const channels = pgTable('channels', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
 });
 
+// ===== File Attachments =====
+export const fileAttachments = pgTable('file_attachments', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  messageId: uuid('message_id').references(() => messages.id, { onDelete: 'cascade' }),
+  uploaderId: uuid('uploader_id').notNull().references(() => users.id),
+  filename: text('filename').notNull(),
+  originalName: text('original_name').notNull(),
+  mimeType: text('mime_type').notNull(),
+  size: integer('size').notNull(), // en bytes
+  type: text('type').notNull(), // 'upload', 'torrent'
+  url: text('url'), // URL pour les uploads directs
+  magnetUri: text('magnet_uri'), // Magnet URI pour WebTorrent
+  thumbnailPath: text('thumbnail_path'), // Chemin vers la miniature
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});
+
 // ===== Relations =====
 export const usersRelations = relations(users, ({ many }) => ({
   messages: many(messages),
@@ -127,6 +143,7 @@ export const messagesRelations = relations(messages, ({ one, many }) => ({
   }),
   reactions: many(messageReactions),
   embeds: many(messageEmbeds),
+  attachments: many(fileAttachments),
 }));
 
 export const messageReactionsRelations = relations(messageReactions, ({ one }) => ({
@@ -191,5 +208,17 @@ export const channelsRelations = relations(channels, ({ one }) => ({
   server: one(servers, {
     fields: [channels.serverId],
     references: [servers.id],
+  }),
+}));
+
+// File Attachments relations
+export const fileAttachmentsRelations = relations(fileAttachments, ({ one }) => ({
+  message: one(messages, {
+    fields: [fileAttachments.messageId],
+    references: [messages.id],
+  }),
+  uploader: one(users, {
+    fields: [fileAttachments.uploaderId],
+    references: [users.id],
   }),
 }));
