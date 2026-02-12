@@ -63,8 +63,8 @@ export function useRoomConnection(options: UseRoomConnectionOptions = {}) {
     socket.emit('room:leave');
     syncEngine.destroy();
     clearRoom();
-    clearChatMessages();
-  }, [clearRoom, clearChatMessages]);
+    clearMessages();
+  }, [clearRoom, clearMessages]);
 
   // Set up socket listeners
   useEffect(() => {

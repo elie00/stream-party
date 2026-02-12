@@ -8,9 +8,14 @@ import { useAuthStore } from '../../stores/authStore';
 interface ScreenShareIndicatorProps {
   isLocalSharing: boolean;
   sharingUserId?: string;
+  onStopScreenShare?: () => void;
 }
 
-export function ScreenShareIndicator({ isLocalSharing, sharingUserId }: ScreenShareIndicatorProps) {
+export function ScreenShareIndicator({ 
+  isLocalSharing, 
+  sharingUserId,
+  onStopScreenShare 
+}: ScreenShareIndicatorProps) {
   const room = useRoomStore((state) => state.room);
   const currentUserId = useAuthStore((state) => state.userId);
 
@@ -45,11 +50,9 @@ export function ScreenShareIndicator({ isLocalSharing, sharingUserId }: ScreenSh
       <span className="text-sm font-medium">
         {getSharingName()} sharing screen
       </span>
-      {isLocalSharing && (
+      {isLocalSharing && onStopScreenShare && (
         <button
-          onClick={() => {
-            // This will be handled by the parent component
-          }}
+          onClick={onStopScreenShare}
           className="ml-2 px-2 py-1 text-xs bg-green-700 hover:bg-green-800 rounded transition-colors"
         >
           Stop

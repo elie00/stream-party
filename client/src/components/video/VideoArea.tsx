@@ -6,6 +6,7 @@ import { CallOverlay } from '../call/CallOverlay';
 import { TorrentStatus } from './TorrentStatus';
 import { MagnetInput } from './MagnetInput';
 import type Player from 'video.js/dist/types/player';
+import type { RoomParticipant } from '@stream-party/shared';
 
 interface RemoteStreamInfo {
   stream: MediaStream;
@@ -21,11 +22,7 @@ interface VideoAreaProps {
   inCall: boolean;
   localStream: MediaStream | null;
   remoteStreams: Map<string, RemoteStreamInfo>;
-  participants: Array<{
-    userId: string;
-    displayName: string;
-    inCall: boolean;
-  }>;
+  participants: RoomParticipant[];
   localAudioEnabled: boolean;
   localVideoEnabled: boolean;
   onPlayerReady: (player: Player) => void;

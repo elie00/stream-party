@@ -1,12 +1,14 @@
 /**
  * Room Page - Main watching room component
  * Refactored to use custom hooks for better separation of concerns
+ * Updated to use SFU-based calls for better scalability
  */
 import { useState, useCallback, useEffect } from 'react';
 import { useRoomStore, useIsHost } from '../stores/roomStore';
 import { useRoomConnection } from '../hooks/useRoomConnection';
 import { useTorrent } from '../hooks/useTorrent';
-import { useCall } from '../hooks/useCall';
+// import { useCall } from '../hooks/useCall'; // Legacy mesh WebRTC - kept for reference
+import { useSfuCall } from '../hooks/useSfuCall';
 import { useVideoSync } from '../hooks/useVideoSync';
 import { getSocket } from '../services/socket';
 import { webtorrentService } from '../services/webtorrent';
@@ -15,6 +17,7 @@ import { VideoArea } from '../components/video/VideoArea';
 import { ChatPanel } from '../components/chat/ChatPanel';
 import { ShareModal } from '../components/room/ShareModal';
 import { FileSelector } from '../components/video/FileSelector';
+import { ScreenShareIndicator } from '../components/call/ScreenShareIndicator';
 import type { TorrentFileInfo } from '../services/webtorrent';
 
 interface RemoteStreamInfo {
@@ -51,18 +54,21 @@ export function RoomPage() {
     isHost,
   });
 
-  // Call hook
+  // SFU Call hook - replaces legacy mesh WebRTC useCall
   const {
     inCall,
     localStream,
     remoteStreams,
     audioEnabled,
     videoEnabled,
+    isScreenSharing,
     joinCall,
     leaveCall,
     toggleAudio,
     toggleVideo,
-  } = useCall();
+    startScreenShare,
+    stopScreenShare,
+  } = useSfuCall();
 
   // Room connection hook with callbacks
   const { leaveRoom } = useRoomConnection({
@@ -125,14 +131,27 @@ export function RoomPage() {
         inCall={inCall}
         audioEnabled={audioEnabled}
         videoEnabled={videoEnabled}
+        isScreenSharing={isScreenSharing}
         onJoinCall={joinCall}
         onLeaveCall={leaveCall}
         onToggleAudio={toggleAudio}
         onToggleVideo={toggleVideo}
+        onStartScreenShare={startScreenShare}
+        onStopScreenShare={stopScreenShare}
         onShare={() => setIsShareOpen(true)}
         onToggleChat={() => setIsChatOpen(!isChatOpen)}
         isChatOpen={isChatOpen}
       />
+
+      {/* Screen Share Indicator */}
+      {inCall && (
+        <div className="absolute top-16 left-1/2 transform -translate-x-1/2 z-20">
+          <ScreenShareIndicator
+            isLocalSharing={isScreenSharing}
+            onStopScreenShare={stopScreenShare}
+          />
+        </div>
+      )}
 
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden relative">

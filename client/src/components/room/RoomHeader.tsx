@@ -1,9 +1,10 @@
 /**
  * Room header component with room info, call controls, and actions
+ * Updated to use SFU-based call controls with screen sharing support
  */
 import type { RoomParticipant } from '@stream-party/shared';
 import { ParticipantList } from './ParticipantList';
-import { CallControls } from '../call/CallControls';
+import { SfuCallControls } from '../call/SfuCallControls';
 import { Button } from '../ui/Button';
 
 interface RoomHeaderProps {
@@ -15,12 +16,16 @@ interface RoomHeaderProps {
   inCall: boolean;
   audioEnabled: boolean;
   videoEnabled: boolean;
+  isScreenSharing: boolean;
   onJoinCall: () => void;
   onLeaveCall: () => void;
   onToggleAudio: () => void;
   onToggleVideo: () => void;
+  onStartScreenShare: () => void;
+  onStopScreenShare: () => void;
   onShare: () => void;
   onToggleChat: () => void;
+  isChatOpen?: boolean;
 }
 
 export function RoomHeader({
@@ -32,10 +37,13 @@ export function RoomHeader({
   inCall,
   audioEnabled,
   videoEnabled,
+  isScreenSharing,
   onJoinCall,
   onLeaveCall,
   onToggleAudio,
   onToggleVideo,
+  onStartScreenShare,
+  onStopScreenShare,
   onShare,
   onToggleChat,
 }: RoomHeaderProps) {
@@ -49,15 +57,18 @@ export function RoomHeader({
       </div>
 
       <div className="flex items-center gap-2 md:gap-4 flex-shrink-0">
-        {/* Call Controls */}
-        <CallControls
+        {/* SFU Call Controls with Screen Sharing */}
+        <SfuCallControls
           inCall={inCall}
           audioEnabled={audioEnabled}
           videoEnabled={videoEnabled}
+          isScreenSharing={isScreenSharing}
           onJoinCall={onJoinCall}
           onLeaveCall={onLeaveCall}
           onToggleAudio={onToggleAudio}
           onToggleVideo={onToggleVideo}
+          onStartScreenShare={onStartScreenShare}
+          onStopScreenShare={onStopScreenShare}
         />
 
         {/* Participant Avatars */}
