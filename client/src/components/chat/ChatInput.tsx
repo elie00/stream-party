@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { MAX_CHAT_MESSAGE_LENGTH, MAX_FILE_UPLOAD_SIZE, ALLOWED_FILE_MIME_TYPES } from '@stream-party/shared';
 import { FileUpload } from './FileUpload';
 import { api } from '../../services/api';
@@ -15,15 +15,32 @@ interface ChatInputProps {
   onSend: (content: string, attachments?: string[]) => void;
   onTypingStart: () => void;
   onTypingStop: () => void;
+  participants?: Array<{ userId: string; displayName: string }>;
 }
 
-export function ChatInput({ onSend, onTypingStart, onTypingStop }: ChatInputProps) {
+export function ChatInput({ onSend, onTypingStart, onTypingStop, participants = [] }: ChatInputProps) {
   const [value, setValue] = useState('');
   const [showFileUpload, setShowFileUpload] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
+  const [showMentions, setShowMentions] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState('');
+  const [mentionStartIndex, setMentionStartIndex] = useState(-1);
+  const [selectedMentionIndex, setSelectedMentionIndex] = useState(0);
+  
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isTypingRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const mentionsRef = useRef<HTMLDivElement>(null);
+
+  // Filter participants based on mention query
+  const filteredParticipants = useMemo(() => {
+    if (!mentionQuery) return participants;
+    const query = mentionQuery.toLowerCase();
+    return participants.filter(p => 
+      p.displayName.toLowerCase().includes(query)
+    );
+  }, [participants, mentionQuery]);
 
   const handleTyping = useCallback(() => {
     if (!isTypingRef.current) {
@@ -59,6 +76,27 @@ export function ChatInput({ onSend, onTypingStart, onTypingStop }: ChatInputProp
       return null;
     }
   };
+
+  const insertMention = useCallback((displayName: string) => {
+    if (mentionStartIndex === -1) return;
+    
+    const beforeMention = value.slice(0, mentionStartIndex);
+    const afterMention = value.slice(inputRef.current?.selectionStart || 0);
+    const newValue = `${beforeMention}@${displayName} ${afterMention}`;
+    
+    setValue(newValue);
+    setShowMentions(false);
+    setMentionQuery('');
+    setMentionStartIndex(-1);
+    setSelectedMentionIndex(0);
+    
+    // Focus input and move cursor after mention
+    setTimeout(() => {
+      inputRef.current?.focus();
+      const cursorPos = beforeMention.length + displayName.length + 2;
+      inputRef.current?.setSelectionRange(cursorPos, cursorPos);
+    }, 0);
+  }, [value, mentionStartIndex]);
 
   const handleSend = useCallback(async () => {
     const trimmed = value.trim();
@@ -104,6 +142,7 @@ export function ChatInput({ onSend, onTypingStart, onTypingStop }: ChatInputProp
     setValue('');
     setPendingFiles([]);
     setShowFileUpload(false);
+    setShowMentions(false);
 
     // Stop typing indicator immediately
     if (typingTimeoutRef.current) {
@@ -117,19 +156,76 @@ export function ChatInput({ onSend, onTypingStart, onTypingStop }: ChatInputProp
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
+      // Handle mention list navigation
+      if (showMentions && filteredParticipants.length > 0) {
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          setSelectedMentionIndex(prev => 
+            prev < filteredParticipants.length - 1 ? prev + 1 : 0
+          );
+          return;
+        }
+        if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          setSelectedMentionIndex(prev => 
+            prev > 0 ? prev - 1 : filteredParticipants.length - 1
+          );
+          return;
+        }
+        if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey)) {
+          e.preventDefault();
+          insertMention(filteredParticipants[selectedMentionIndex].displayName);
+          return;
+        }
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          setShowMentions(false);
+          setMentionQuery('');
+          setMentionStartIndex(-1);
+          return;
+        }
+      }
+
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         handleSend();
       }
     },
-    [handleSend],
+    [handleSend, showMentions, filteredParticipants, selectedMentionIndex, insertMention],
   );
 
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const newValue = e.target.value;
+      const cursorPos = e.target.selectionStart || 0;
+      
       if (newValue.length <= MAX_CHAT_MESSAGE_LENGTH) {
         setValue(newValue);
+        
+        // Check for @ mentions
+        const lastAtIndex = newValue.lastIndexOf('@', cursorPos - 1);
+        
+        if (lastAtIndex !== -1) {
+          // Check if there's a space between @ and cursor (which would end the mention)
+          const textAfterAt = newValue.slice(lastAtIndex + 1, cursorPos);
+          
+          if (!textAfterAt.includes(' ') && !textAfterAt.includes('\n')) {
+            // Show mentions dropdown
+            setMentionStartIndex(lastAtIndex);
+            setMentionQuery(textAfterAt);
+            setShowMentions(true);
+            setSelectedMentionIndex(0);
+          } else {
+            setShowMentions(false);
+            setMentionQuery('');
+            setMentionStartIndex(-1);
+          }
+        } else {
+          setShowMentions(false);
+          setMentionQuery('');
+          setMentionStartIndex(-1);
+        }
+        
         if (newValue.trim()) {
           handleTyping();
         }
@@ -178,6 +274,23 @@ export function ChatInput({ onSend, onTypingStart, onTypingStop }: ChatInputProp
     },
     [handleFileSelect]
   );
+
+  // Close mentions dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        mentionsRef.current &&
+        !mentionsRef.current.contains(e.target as Node) &&
+        inputRef.current &&
+        !inputRef.current.contains(e.target as Node)
+      ) {
+        setShowMentions(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Cleanup timeout on unmount
   useEffect(() => {
@@ -279,7 +392,7 @@ export function ChatInput({ onSend, onTypingStart, onTypingStop }: ChatInputProp
         </div>
       )}
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 relative">
         {/* File upload button */}
         <button
           onClick={() => setShowFileUpload(!showFileUpload)}
@@ -301,15 +414,42 @@ export function ChatInput({ onSend, onTypingStart, onTypingStop }: ChatInputProp
           </svg>
         </button>
 
-        <input
-          type="text"
-          value={value}
-          onChange={handleChange}
-          onKeyDown={handleKeyDown}
-          placeholder="Send a message..."
-          maxLength={MAX_CHAT_MESSAGE_LENGTH}
-          className="flex-1 bg-[#252525] text-white text-sm rounded-lg px-3 py-2 outline-none border border-transparent focus:border-[#7c3aed] transition-colors placeholder:text-[#606060]"
-        />
+        <div className="flex-1 relative">
+          <input
+            ref={inputRef}
+            type="text"
+            value={value}
+            onChange={handleChange}
+            onKeyDown={handleKeyDown}
+            placeholder="Send a message... (@ pour mentionner)"
+            maxLength={MAX_CHAT_MESSAGE_LENGTH}
+            className="w-full bg-[#252525] text-white text-sm rounded-lg px-3 py-2 outline-none border border-transparent focus:border-[#7c3aed] transition-colors placeholder:text-[#606060]"
+          />
+
+          {/* Mentions dropdown */}
+          {showMentions && filteredParticipants.length > 0 && (
+            <div
+              ref={mentionsRef}
+              className="absolute bottom-full left-0 mb-1 w-full max-h-48 overflow-y-auto bg-[#1a1a1a] rounded-lg border border-[#333] shadow-lg z-10"
+            >
+              {filteredParticipants.map((participant, index) => (
+                <button
+                  key={participant.userId}
+                  onClick={() => insertMention(participant.displayName)}
+                  className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 transition-colors ${
+                    index === selectedMentionIndex
+                      ? 'bg-[#7c3aed] text-white'
+                      : 'text-white hover:bg-[#333]'
+                  }`}
+                >
+                  <span className="text-[#a0a0a0]">@</span>
+                  <span>{participant.displayName}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
         <button
           onClick={handleSend}
           disabled={!canSend}

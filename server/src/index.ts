@@ -8,6 +8,7 @@ import roomRoutes from './routes/rooms';
 import addonRoutes from './routes/addons';
 import serverRoutes from './routes/servers';
 import fileRoutes from './routes/files';
+import youtubeRoutes from './routes/youtube';
 import { createSocketServer } from './socket/index';
 import { apiLimiter } from './middleware/rateLimiter';
 import { mediasoupService } from './services/mediasoup';
@@ -83,6 +84,7 @@ app.use('/api/rooms', roomRoutes);
 app.use('/api/addons', addonRoutes);
 app.use('/api/servers', serverRoutes);
 app.use('/api/files', fileRoutes);
+app.use('/api/youtube', youtubeRoutes);
 
 // Serve uploaded files statically
 const UPLOAD_DIR = process.env.UPLOAD_DIR || './uploads';

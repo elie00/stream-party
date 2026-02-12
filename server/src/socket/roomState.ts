@@ -1,4 +1,5 @@
 import { SyncState, RoomParticipant, RoomState } from '@stream-party/shared';
+import { cleanupYouTubeState } from './handlers/youtube.handler';
 
 interface Participant {
   userId: string;
@@ -90,6 +91,8 @@ export function removeParticipant(
   // If room is empty, remove it
   if (room.participants.size === 0) {
     activeRooms.delete(code);
+    // Clean up YouTube state and queue
+    cleanupYouTubeState(code);
     return { userId, wasHost, newHostId: undefined };
   }
 
@@ -186,4 +189,13 @@ export function setParticipantInCall(code: string, socketId: string, inCall: boo
   if (participant) {
     participant.inCall = inCall;
   }
+}
+
+export function getRoomParticipants(code: string): Participant[] {
+  const room = activeRooms.get(code);
+  if (!room) {
+    return [];
+  }
+
+  return Array.from(room.participants.values());
 }

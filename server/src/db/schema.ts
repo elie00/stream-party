@@ -1,4 +1,4 @@
-import { pgTable, text, boolean, timestamp, integer, uuid } from 'drizzle-orm/pg-core';
+import { pgTable, text, boolean, timestamp, integer, uuid, serial, jsonb, varchar } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
 export const users = pgTable('users', {
@@ -121,6 +121,56 @@ export const fileAttachments = pgTable('file_attachments', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
 });
 
+// ===== YouTube Video Queue =====
+export const videoQueue = pgTable('video_queue', {
+  id: serial('id').primaryKey(),
+  roomId: uuid('room_id').notNull().references(() => rooms.id, { onDelete: 'cascade' }),
+  videoId: varchar('video_id', { length: 20 }).notNull(), // YouTube video ID
+  title: varchar('title', { length: 255 }).notNull(),
+  thumbnail: text('thumbnail'),
+  duration: integer('duration'), // in seconds
+  channel: varchar('channel', { length: 255 }),
+  addedBy: uuid('added_by').notNull().references(() => users.id),
+  addedAt: timestamp('added_at').notNull().defaultNow(),
+  position: integer('position').notNull(),
+  votes: jsonb('votes').$type<string[]>().default([]),
+  isPlaying: boolean('is_playing').notNull().default(false),
+});
+
+// ===== User Presence =====
+export const userPresence = pgTable('user_presence', {
+  id: serial('id').primaryKey(),
+  userId: uuid('user_id').references(() => users.id).notNull().unique(),
+  status: varchar('status', { length: 20 }).default('online'), // online, idle, dnd, offline
+  customStatus: varchar('custom_status', { length: 100 }),
+  lastSeenAt: timestamp('last_seen_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+
+// ===== Notifications =====
+export const notifications = pgTable('notifications', {
+  id: serial('id').primaryKey(),
+  userId: uuid('user_id').references(() => users.id).notNull(),
+  type: varchar('type', { length: 50 }).notNull(), // mention, reply, reaction, join, file, system
+  title: varchar('title', { length: 255 }).notNull(),
+  content: text('content'),
+  data: jsonb('data').$type<Record<string, unknown>>(),
+  read: boolean('read').default(false),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+// ===== Notification Preferences =====
+export const notificationPreferences = pgTable('notification_preferences', {
+  id: serial('id').primaryKey(),
+  userId: uuid('user_id').references(() => users.id).notNull().unique(),
+  enableDesktop: boolean('enable_desktop').default(true),
+  enableSound: boolean('enable_sound').default(true),
+  enableMentions: boolean('enable_mentions').default(true),
+  enableDirectMessages: boolean('enable_direct_messages').default(true),
+  mutedServers: jsonb('muted_servers').$type<string[]>().default([]),
+  mutedChannels: jsonb('muted_channels').$type<string[]>().default([]),
+});
+
 // ===== Relations =====
 export const usersRelations = relations(users, ({ many }) => ({
   messages: many(messages),
@@ -130,6 +180,7 @@ export const usersRelations = relations(users, ({ many }) => ({
 export const roomsRelations = relations(rooms, ({ many }) => ({
   messages: many(messages),
   voiceChannels: many(voiceChannels),
+  videoQueue: many(videoQueue),
 }));
 
 export const messagesRelations = relations(messages, ({ one, many }) => ({
@@ -219,6 +270,42 @@ export const fileAttachmentsRelations = relations(fileAttachments, ({ one }) => 
   }),
   uploader: one(users, {
     fields: [fileAttachments.uploaderId],
+    references: [users.id],
+  }),
+}));
+
+// Video Queue relations
+export const videoQueueRelations = relations(videoQueue, ({ one }) => ({
+  room: one(rooms, {
+    fields: [videoQueue.roomId],
+    references: [rooms.id],
+  }),
+  addedByUser: one(users, {
+    fields: [videoQueue.addedBy],
+    references: [users.id],
+  }),
+}));
+
+// User Presence relations
+export const userPresenceRelations = relations(userPresence, ({ one }) => ({
+  user: one(users, {
+    fields: [userPresence.userId],
+    references: [users.id],
+  }),
+}));
+
+// Notification Preferences relations
+export const notificationPreferencesRelations = relations(notificationPreferences, ({ one }) => ({
+  user: one(users, {
+    fields: [notificationPreferences.userId],
+    references: [users.id],
+  }),
+}));
+
+// Notifications relations
+export const notificationsRelations = relations(notifications, ({ one }) => ({
+  user: one(users, {
+    fields: [notifications.userId],
     references: [users.id],
   }),
 }));

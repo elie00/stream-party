@@ -11,6 +11,9 @@ import { registerVoiceHandlers } from './handlers/voice.handler';
 import { registerReactionHandlers } from './handlers/reaction.handler';
 import { registerEmbedHandlers } from './handlers/embed.handler';
 import { registerServerHandlers } from './handlers/server.handler';
+import { registerYouTubeHandlers } from './handlers/youtube.handler';
+import { registerPresenceHandlers } from './handlers/presence.handler';
+import { registerNotificationHandlers } from './handlers/notification.handler';
 import { logger } from '../utils/logger';
 
 // Extend Socket.IO socket data type
@@ -122,6 +125,15 @@ export function createSocketServer(httpServer: HTTPServer) {
 
     // Register server handlers
     registerServerHandlers(io, socket);
+
+    // Register YouTube handlers
+    registerYouTubeHandlers(io, socket);
+
+    // Register presence handlers
+    registerPresenceHandlers(io, socket);
+
+    // Register notification handlers
+    registerNotificationHandlers(io, socket);
 
     socket.on('disconnect', () => {
       logger.info(`User disconnected: ${user?.displayName} (${user?.userId})`);

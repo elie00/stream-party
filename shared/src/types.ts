@@ -139,6 +139,26 @@ export interface ServerToClientEvents {
   'server:channel-created': (data: { serverId: string; channel: Channel }) => void;
   'server:channel-deleted': (data: { serverId: string; channelId: string }) => void;
   'server:error': (data: { message: string }) => void;
+  // YouTube events
+  'youtube:source': (data: { videoId: string | null }) => void;
+  'youtube:time': (data: { time: number }) => void;
+  'youtube:play': () => void;
+  'youtube:pause': () => void;
+  'youtube:seek': (data: { time: number }) => void;
+  'youtube:state': (state: YouTubeSyncState) => void;
+  // Queue events
+  'queue:add': (data: { video: VideoQueueItem }) => void;
+  'queue:remove': (data: { videoId: string }) => void;
+  'queue:vote': (data: { videoId: string; userId: string; votes: string[] }) => void;
+  'queue:sync': (data: { queue: VideoQueueItem[] }) => void;
+  // Presence events
+  'presence:update': (data: { userId: string; presence: UserPresence }) => void;
+  'presence:bulk': (data: { presences: Record<string, UserPresence> }) => void;
+  // Notification events
+  'notification:new': (data: { notification: Notification }) => void;
+  'notification:read': (data: { notificationId: number }) => void;
+  'notification:unread-count': (data: { count: number }) => void;
+  'notification:list': (data: { notifications: Notification[] }) => void;
   'error': (message: string) => void;
 }
 
@@ -190,6 +210,28 @@ export interface ClientToServerEvents {
   // Server events
   'server:join': (data: { serverId: string }, cb: (res: { success: boolean; error?: string }) => void) => void;
   'server:leave': (data: { serverId: string }) => void;
+  // YouTube events
+  'youtube:source': (data: { videoId: string | null }) => void;
+  'youtube:time': (data: { time: number }) => void;
+  'youtube:play': () => void;
+  'youtube:pause': () => void;
+  'youtube:seek': (data: { time: number }) => void;
+  'youtube:state': (state: YouTubeSyncState) => void;
+  'youtube:request': () => void;
+  // Queue events
+  'queue:add': (data: { video: Omit<VideoQueueItem, 'position' | 'votes'> }) => void;
+  'queue:remove': (data: { videoId: string }) => void;
+  'queue:vote': (data: { videoId: string }) => void;
+  'queue:request': () => void;
+  // Presence events
+  'presence:set': (data: { status: PresenceStatus }) => void;
+  'presence:custom-status': (data: { customStatus: string | null }) => void;
+  'presence:request': (data: { userIds: string[] }) => void;
+  // Notification events
+  'notification:get': (data: { limit?: number; offset?: number }) => void;
+  'notification:mark-read': (data: { notificationId: number }) => void;
+  'notification:mark-all-read': () => void;
+  'notification:get-unread-count': () => void;
 }
 
 // SFU Types
@@ -383,3 +425,112 @@ export const ALLOWED_FILE_MIME_TYPES = [
 
 export const IMAGE_MIME_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 export const VIDEO_MIME_TYPES = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo'];
+
+// ===== YouTube Types =====
+export type VideoSource = 'torrent' | 'file' | 'youtube';
+
+export interface YouTubeVideo {
+  id: string;
+  title: string;
+  thumbnail: string;
+  duration: number;
+  channel: string;
+  addedBy: string;
+  addedAt: number;
+}
+
+export interface VideoQueueItem extends YouTubeVideo {
+  position: number;
+  votes: string[]; // user IDs
+}
+
+export interface YouTubeMetadata {
+  id: string;
+  title: string;
+  description: string;
+  thumbnail: string;
+  duration: number;
+  channel: string;
+  viewCount: number;
+}
+
+export interface YouTubeStream {
+  url: string;
+  quality: string;
+  mimeType: string;
+  hasAudio: boolean;
+  hasVideo: boolean;
+}
+
+export interface YouTubeSearchResult {
+  id: string;
+  title: string;
+  thumbnail: string;
+  duration: number;
+  channel: string;
+  viewCount: number;
+}
+
+// ===== YouTube Sync Events =====
+export interface YouTubeSyncState {
+  videoId: string | null;
+  currentTime: number;
+  isPlaying: boolean;
+  timestamp: number;
+}
+
+export interface YouTubeSyncEvents {
+  'youtube:source': { videoId: string; roomId: string };
+  'youtube:time': { time: number; roomId: string };
+  'youtube:play': { roomId: string };
+  'youtube:pause': { roomId: string };
+  'youtube:seek': { time: number; roomId: string };
+}
+
+export interface QueueSyncEvents {
+  'queue:add': { video: VideoQueueItem; roomId: string };
+  'queue:remove': { videoId: string; roomId: string };
+  'queue:vote': { videoId: string; userId: string; roomId: string };
+  'queue:sync': { queue: VideoQueueItem[]; roomId: string };
+}
+
+// ===== Presence Types =====
+export type PresenceStatus = 'online' | 'idle' | 'dnd' | 'offline';
+
+export interface UserPresence {
+  userId: string;
+  status: PresenceStatus;
+  customStatus?: string | null;
+  lastSeenAt: Date;
+}
+
+export interface NotificationPreferences {
+  userId: string;
+  enableDesktop: boolean;
+  enableSound: boolean;
+  enableMentions: boolean;
+  enableDirectMessages: boolean;
+  mutedServers: string[];
+  mutedChannels: string[];
+}
+
+// ===== Notification Types =====
+export type NotificationType = 'mention' | 'reply' | 'reaction' | 'join' | 'file' | 'system';
+
+export interface Notification {
+  id: number;
+  userId: string;
+  type: NotificationType;
+  title: string;
+  content?: string;
+  data?: Record<string, unknown>;
+  read: boolean;
+  createdAt: Date;
+}
+
+export interface CreateNotificationInput {
+  type: NotificationType;
+  title: string;
+  content?: string;
+  data?: Record<string, unknown>;
+}

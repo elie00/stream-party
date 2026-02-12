@@ -3,9 +3,11 @@ import type { ClientToServerEvents, ServerToClientEvents, ChatMessage, MessageEm
 import { MAX_CHAT_MESSAGE_LENGTH, CHAT_RATE_LIMIT } from '@stream-party/shared';
 import { db, schema } from '../../db/index';
 import { eq, desc, lt, and } from 'drizzle-orm';
-import { getRoomBySocket } from '../roomState';
+import { getRoomBySocket, getRoomParticipants } from '../roomState';
 import { validateChatMessage } from '../../utils/validators';
 import { generateEmbedsForMessage } from '../../services/embedService';
+import { notificationService } from '../../services/notificationService';
+import { sendNotificationToUser } from './notification.handler';
 
 type TypedSocket = Socket<ClientToServerEvents, ServerToClientEvents>;
 type TypedServer = Server<ClientToServerEvents, ServerToClientEvents>;
@@ -26,6 +28,25 @@ function recordMessage(socketId: string): void {
   const timestamps = rateLimits.get(socketId) || [];
   timestamps.push(Date.now());
   rateLimits.set(socketId, timestamps);
+}
+
+/**
+ * Extract mentions from message content
+ * Matches @username patterns
+ */
+function extractMentions(content: string): string[] {
+  const mentionRegex = /@([a-zA-Z0-9_\-\s]+?)(?=\s|$|[^a-zA-Z0-9_\-\s])/g;
+  const mentions: string[] = [];
+  let match;
+  
+  while ((match = mentionRegex.exec(content)) !== null) {
+    const username = match[1].trim();
+    if (username && !mentions.includes(username)) {
+      mentions.push(username);
+    }
+  }
+  
+  return mentions;
 }
 
 export function registerChatHandlers(io: TypedServer, socket: TypedSocket): void {
@@ -78,6 +99,36 @@ export function registerChatHandlers(io: TypedServer, socket: TypedSocket): void
 
       // Broadcast to everyone in the room (including sender)
       io.to(room.code).emit('chat:message', chatMessage);
+
+      // Handle mentions - create notifications for mentioned users
+      const mentions = extractMentions(validation.sanitized);
+      if (mentions.length > 0) {
+        // Get room participants to find mentioned users
+        const participants = getRoomParticipants(room.code);
+        
+        for (const mentionName of mentions) {
+          // Find user by display name (case-insensitive)
+          const mentionedParticipant = participants.find(
+            p => p.displayName.toLowerCase() === mentionName.toLowerCase()
+          );
+          
+          if (mentionedParticipant && mentionedParticipant.userId !== user.userId) {
+            // Create mention notification
+            const notification = await notificationService.createMentionNotification(
+              mentionedParticipant.userId,
+              user.displayName,
+              room.dbRoomId,
+              room.name,
+              validation.sanitized
+            );
+            
+            if (notification) {
+              // Send real-time notification to the mentioned user
+              await sendNotificationToUser(io, mentionedParticipant.userId, notification);
+            }
+          }
+        }
+      }
 
       // Generate embeds asynchronously (don't block the response)
       generateEmbedsForMessage(validation.sanitized)
