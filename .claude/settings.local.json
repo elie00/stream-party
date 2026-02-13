@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls:*)",
+      "Bash(command grep -rn 'SearchParams\\\\|SearchResult' /Users/eybo/stream-party/shared/src/ /Users/eybo/stream-party/server/src/)",
+      "Bash(command grep -n 'ClientToServerEvents\\\\|ServerToClientEvents' /Users/eybo/stream-party/shared/src/types.ts)",
+      "Bash(npx tsc:*)",
+      "Bash(xargs:*)"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "shadcn"
+  ]
+}

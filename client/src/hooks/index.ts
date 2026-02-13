@@ -17,3 +17,4 @@ export {
   useFocusTrap,
   useAnnouncer,
 } from './useNotifications';
+export { useDM } from './useDM';

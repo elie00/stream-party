@@ -159,6 +159,92 @@ export const notifications = pgTable('notifications', {
   createdAt: timestamp('created_at').defaultNow(),
 });
 
+// ===== Moderation - Roles =====
+export const roles = pgTable('roles', {
+  id: serial('id').primaryKey(),
+  serverId: uuid('server_id').references(() => servers.id).notNull(),
+  name: varchar('name', { length: 50 }).notNull(),
+  color: varchar('color', { length: 7 }).default('#99AAB5'),
+  position: integer('position').default(0),
+  permissions: jsonb('permissions').$type<string[]>().default([]),
+  isDefault: boolean('is_default').default(false),
+});
+
+// ===== Moderation - Channel Permissions =====
+export const channelPermissions = pgTable('channel_permissions', {
+  id: serial('id').primaryKey(),
+  channelId: uuid('channel_id').references(() => channels.id).notNull(),
+  roleId: integer('role_id').references(() => roles.id).notNull(),
+  allow: jsonb('allow').$type<string[]>().default([]),
+  deny: jsonb('deny').$type<string[]>().default([]),
+});
+
+// ===== Moderation - Logs =====
+export const moderationLogs = pgTable('moderation_logs', {
+  id: serial('id').primaryKey(),
+  serverId: uuid('server_id').references(() => servers.id).notNull(),
+  action: varchar('action', { length: 20 }).notNull(), // warn, mute, kick, ban
+  targetUserId: uuid('target_user_id').notNull(),
+  moderatorId: uuid('moderator_id').notNull(),
+  reason: text('reason'),
+  duration: integer('duration'), // pour mute temporaire (en minutes)
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+// ===== Moderation - Muted Users =====
+export const mutedUsers = pgTable('muted_users', {
+  id: serial('id').primaryKey(),
+  serverId: uuid('server_id').references(() => servers.id).notNull(),
+  userId: uuid('user_id').notNull(),
+  mutedBy: uuid('muted_by').notNull(),
+  reason: text('reason'),
+  expiresAt: timestamp('expires_at'),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+// ===== Moderation - Banned Users =====
+export const bannedUsers = pgTable('banned_users', {
+  id: serial('id').primaryKey(),
+  serverId: uuid('server_id').references(() => servers.id).notNull(),
+  userId: uuid('user_id').notNull(),
+  bannedBy: uuid('banned_by').notNull(),
+  reason: text('reason'),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+// ===== Moderation - Auto-Mod Config =====
+export const autoModConfig = pgTable('auto_mod_config', {
+  id: serial('id').primaryKey(),
+  serverId: uuid('server_id').references(() => servers.id).notNull().unique(),
+  enableSpamProtection: boolean('enable_spam_protection').default(true),
+  enableLinkFilter: boolean('enable_link_filter').default(false),
+  enableWordFilter: boolean('enable_word_filter').default(false),
+  bannedWords: jsonb('banned_words').$type<string[]>().default([]),
+  spamThreshold: integer('spam_threshold').default(5), // messages en 10 secondes
+  muteDuration: integer('mute_duration').default(10), // minutes
+});
+
+// ===== Direct Messages =====
+export const directMessageChannels = pgTable('direct_message_channels', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});
+
+export const directMessageParticipants = pgTable('direct_message_participants', {
+  id: serial('id').primaryKey(),
+  channelId: uuid('channel_id').notNull().references(() => directMessageChannels.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id),
+});
+
+export const directMessages = pgTable('direct_messages', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  channelId: uuid('channel_id').notNull().references(() => directMessageChannels.id, { onDelete: 'cascade' }),
+  senderId: uuid('sender_id').notNull().references(() => users.id),
+  content: text('content').notNull(),
+  editedAt: timestamp('edited_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});
+
 // ===== Notification Preferences =====
 export const notificationPreferences = pgTable('notification_preferences', {
   id: serial('id').primaryKey(),
@@ -306,6 +392,87 @@ export const notificationPreferencesRelations = relations(notificationPreference
 export const notificationsRelations = relations(notifications, ({ one }) => ({
   user: one(users, {
     fields: [notifications.userId],
+    references: [users.id],
+  }),
+}));
+
+// Moderation - Roles relations
+export const rolesRelations = relations(roles, ({ one, many }) => ({
+  server: one(servers, {
+    fields: [roles.serverId],
+    references: [servers.id],
+  }),
+  channelPermissions: many(channelPermissions),
+}));
+
+// Moderation - Channel Permissions relations
+export const channelPermissionsRelations = relations(channelPermissions, ({ one }) => ({
+  channel: one(channels, {
+    fields: [channelPermissions.channelId],
+    references: [channels.id],
+  }),
+  role: one(roles, {
+    fields: [channelPermissions.roleId],
+    references: [roles.id],
+  }),
+}));
+
+// Moderation - Logs relations
+export const moderationLogsRelations = relations(moderationLogs, ({ one }) => ({
+  server: one(servers, {
+    fields: [moderationLogs.serverId],
+    references: [servers.id],
+  }),
+}));
+
+// Moderation - Muted Users relations
+export const mutedUsersRelations = relations(mutedUsers, ({ one }) => ({
+  server: one(servers, {
+    fields: [mutedUsers.serverId],
+    references: [servers.id],
+  }),
+}));
+
+// Moderation - Banned Users relations
+export const bannedUsersRelations = relations(bannedUsers, ({ one }) => ({
+  server: one(servers, {
+    fields: [bannedUsers.serverId],
+    references: [servers.id],
+  }),
+}));
+
+// Moderation - Auto-Mod Config relations
+export const autoModConfigRelations = relations(autoModConfig, ({ one }) => ({
+  server: one(servers, {
+    fields: [autoModConfig.serverId],
+    references: [servers.id],
+  }),
+}));
+
+// Direct Message relations
+export const directMessageChannelsRelations = relations(directMessageChannels, ({ many }) => ({
+  participants: many(directMessageParticipants),
+  messages: many(directMessages),
+}));
+
+export const directMessageParticipantsRelations = relations(directMessageParticipants, ({ one }) => ({
+  channel: one(directMessageChannels, {
+    fields: [directMessageParticipants.channelId],
+    references: [directMessageChannels.id],
+  }),
+  user: one(users, {
+    fields: [directMessageParticipants.userId],
+    references: [users.id],
+  }),
+}));
+
+export const directMessagesRelations = relations(directMessages, ({ one }) => ({
+  channel: one(directMessageChannels, {
+    fields: [directMessages.channelId],
+    references: [directMessageChannels.id],
+  }),
+  sender: one(users, {
+    fields: [directMessages.senderId],
     references: [users.id],
   }),
 }));

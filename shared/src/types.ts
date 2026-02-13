@@ -159,6 +159,13 @@ export interface ServerToClientEvents {
   'notification:read': (data: { notificationId: number }) => void;
   'notification:unread-count': (data: { count: number }) => void;
   'notification:list': (data: { notifications: Notification[] }) => void;
+  // DM events
+  'dm:channels': (data: { channels: DirectMessageChannel[] }) => void;
+  'dm:channel-opened': (data: { channel: DirectMessageChannel }) => void;
+  'dm:message': (data: { message: DirectMessage }) => void;
+  'dm:history': (data: { channelId: string; messages: DirectMessage[] }) => void;
+  'dm:typing': (data: { channelId: string; userId: string; isTyping: boolean }) => void;
+  'dm:error': (data: { message: string }) => void;
   'error': (message: string) => void;
 }
 
@@ -232,6 +239,13 @@ export interface ClientToServerEvents {
   'notification:mark-read': (data: { notificationId: number }) => void;
   'notification:mark-all-read': () => void;
   'notification:get-unread-count': () => void;
+  // DM events
+  'dm:get-channels': () => void;
+  'dm:open': (data: { targetUserId: string }) => void;
+  'dm:send': (data: { channelId: string; content: string }) => void;
+  'dm:history': (data: { channelId: string; cursor?: string; limit?: number }) => void;
+  'dm:typing-start': (data: { channelId: string }) => void;
+  'dm:typing-stop': (data: { channelId: string }) => void;
 }
 
 // SFU Types
@@ -533,4 +547,174 @@ export interface CreateNotificationInput {
   title: string;
   content?: string;
   data?: Record<string, unknown>;
+}
+
+// ===== Moderation Types =====
+export type ModAction = 'warn' | 'mute' | 'kick' | 'ban';
+
+export type Permission = 
+  | 'admin' 
+  | 'manage_channels' 
+  | 'manage_roles' 
+  | 'kick_members' 
+  | 'ban_members' 
+  | 'mute_members' 
+  | 'manage_messages'
+  | 'view_audit_log'
+  | 'manage_server';
+
+export interface Role {
+  id: number;
+  serverId: string;
+  name: string;
+  color: string;
+  position: number;
+  permissions: Permission[];
+  isDefault: boolean;
+}
+
+export interface ChannelPermission {
+  id: number;
+  channelId: string;
+  roleId: number;
+  allow: Permission[];
+  deny: Permission[];
+}
+
+export interface ModerationLog {
+  id: number;
+  serverId: string;
+  action: ModAction;
+  targetUserId: string;
+  moderatorId: string;
+  reason?: string;
+  duration?: number;
+  createdAt: Date;
+}
+
+export interface ModerationLogWithUsers extends ModerationLog {
+  targetUser: { displayName: string };
+  moderator: { displayName: string };
+}
+
+export interface MutedUser {
+  id: number;
+  serverId: string;
+  userId: string;
+  mutedBy: string;
+  reason?: string;
+  expiresAt?: Date;
+  createdAt: Date;
+}
+
+export interface MutedUserWithDetails extends MutedUser {
+  user: { displayName: string };
+  mutedByUser: { displayName: string };
+}
+
+export interface BannedUser {
+  id: number;
+  serverId: string;
+  userId: string;
+  bannedBy: string;
+  reason?: string;
+  createdAt: Date;
+}
+
+export interface BannedUserWithDetails extends BannedUser {
+  user: { displayName: string };
+  bannedByUser: { displayName: string };
+}
+
+export interface AutoModConfig {
+  id: number;
+  serverId: string;
+  enableSpamProtection: boolean;
+  enableLinkFilter: boolean;
+  enableWordFilter: boolean;
+  bannedWords: string[];
+  spamThreshold: number;
+  muteDuration: number;
+}
+
+// ===== Direct Message Types =====
+export interface DirectMessageChannel {
+  id: string;
+  participants: { userId: string; displayName: string }[];
+  lastMessage?: DirectMessage;
+  createdAt: Date;
+}
+
+export interface DirectMessage {
+  id: string;
+  channelId: string;
+  senderId: string;
+  senderName: string;
+  content: string;
+  editedAt?: Date;
+  createdAt: Date;
+}
+
+// ===== Search Types =====
+export interface SearchResult {
+  type: 'message' | 'user';
+  id: string;
+  content?: string;
+  displayName?: string;
+  serverId?: string;
+  channelId?: string;
+  roomId?: string;
+  createdAt?: Date;
+  score: number;
+}
+
+export interface SearchParams {
+  query: string;
+  serverId?: string;
+  channelId?: string;
+  userId?: string;
+  limit?: number;
+  offset?: number;
+}
+
+// ===== Moderation Socket Events =====
+export interface ModerationSocketEvents {
+  'mod:warn': (data: { serverId: string; targetId: string; reason: string }) => void;
+  'mod:mute': (data: { serverId: string; targetId: string; reason: string; duration?: number }) => void;
+  'mod:unmute': (data: { serverId: string; targetId: string }) => void;
+  'mod:kick': (data: { serverId: string; targetId: string; reason: string }) => void;
+  'mod:ban': (data: { serverId: string; targetId: string; reason: string }) => void;
+  'mod:unban': (data: { serverId: string; targetId: string }) => void;
+  'mod:get-logs': (data: { serverId: string; limit?: number }) => void;
+  'mod:get-muted': (data: { serverId: string }) => void;
+  'mod:get-banned': (data: { serverId: string }) => void;
+  'mod:get-config': (data: { serverId: string }) => void;
+  'mod:update-config': (data: { serverId: string; config: Partial<AutoModConfig> }) => void;
+}
+
+export interface ModerationServerEvents {
+  'mod:warned': (data: { log: ModerationLogWithUsers }) => void;
+  'mod:muted': (data: { mutedUser: MutedUserWithDetails }) => void;
+  'mod:unmuted': (data: { serverId: string; userId: string }) => void;
+  'mod:kicked': (data: { serverId: string; userId: string; reason: string }) => void;
+  'mod:banned': (data: { bannedUser: BannedUserWithDetails }) => void;
+  'mod:unbanned': (data: { serverId: string; userId: string }) => void;
+  'mod:logs': (data: { logs: ModerationLogWithUsers[] }) => void;
+  'mod:muted-users': (data: { mutedUsers: MutedUserWithDetails[] }) => void;
+  'mod:banned-users': (data: { bannedUsers: BannedUserWithDetails[] }) => void;
+  'mod:config': (data: { config: AutoModConfig }) => void;
+  'mod:config-updated': (data: { config: AutoModConfig }) => void;
+  'mod:error': (data: { message: string }) => void;
+}
+
+// ===== Search Socket Events =====
+export interface SearchSocketEvents {
+  'search:messages': (data: SearchParams) => void;
+  'search:users': (data: { query: string; serverId?: string }) => void;
+}
+
+export interface SearchServerEvents {
+  'search:results': (data: { results: SearchResult[] }) => void;
+  'search:users-results': (data: { users: { id: string; displayName: string }[] }) => void;
+  'search:error': (data: { message: string }) => void;
 }

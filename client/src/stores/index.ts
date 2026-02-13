@@ -16,3 +16,4 @@ export {
   IDLE_TIMEOUT_MS,
   ACTIVITY_EVENTS,
 } from './presenceStore';
+export { useDMStore } from './dmStore';

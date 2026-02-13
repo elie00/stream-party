@@ -1,0 +1,2 @@
+client:build:cd /Users/eybo/stream-party/client && npm run build
+client:tsc:cd /Users/eybo/stream-party/client && npx tsc --noEmit
