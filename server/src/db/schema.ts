@@ -117,6 +117,8 @@ export const channels = pgTable('channels', {
   type: text('type').notNull(), // 'text', 'voice'
   position: integer('position').default(0),
   topic: text('topic'),
+  slowmode: integer('slowmode').default(0), // en secondes, 0 = désactivé
+  slowmodeRoles: jsonb('slowmode_roles').$type<string[]>().default([]), // rôles exemptés
   createdAt: timestamp('created_at').notNull().defaultNow(),
 });
 
@@ -158,6 +160,12 @@ export const userPresence = pgTable('user_presence', {
   userId: uuid('user_id').references(() => users.id).notNull().unique(),
   status: varchar('status', { length: 20 }).default('online'), // online, idle, dnd, offline
   customStatus: varchar('custom_status', { length: 100 }),
+  statusEmoji: varchar('status_emoji', { length: 10 }),
+  lastActivity: jsonb('last_activity').$type<{
+    type: 'watching' | 'playing' | 'listening' | 'streaming';
+    name: string;
+    startedAt?: string;
+  } | null>(),
   lastSeenAt: timestamp('last_seen_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 });
@@ -188,8 +196,9 @@ export const roles = pgTable('roles', {
 // ===== Moderation - Channel Permissions =====
 export const channelPermissions = pgTable('channel_permissions', {
   id: serial('id').primaryKey(),
-  channelId: uuid('channel_id').references(() => channels.id).notNull(),
-  roleId: integer('role_id').references(() => roles.id).notNull(),
+  channelId: uuid('channel_id').references(() => channels.id, { onDelete: 'cascade' }).notNull(),
+  roleId: integer('role_id').references(() => roles.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }),
   allow: jsonb('allow').$type<string[]>().default([]),
   deny: jsonb('deny').$type<string[]>().default([]),
 });
@@ -264,12 +273,17 @@ export const directMessages = pgTable('direct_messages', {
 export const notificationPreferences = pgTable('notification_preferences', {
   id: serial('id').primaryKey(),
   userId: uuid('user_id').references(() => users.id).notNull().unique(),
-  enableDesktop: boolean('enable_desktop').default(true),
-  enableSound: boolean('enable_sound').default(true),
-  enableMentions: boolean('enable_mentions').default(true),
-  enableDirectMessages: boolean('enable_direct_messages').default(true),
+  allMessages: boolean('all_messages').default(false),
+  mentions: boolean('mentions').default(true),
+  directMessages: boolean('direct_messages').default(true),
+  serverInvites: boolean('server_invites').default(true),
+  friendRequests: boolean('friend_requests').default(true),
+  sounds: boolean('sounds').default(true),
+  desktopNotifications: boolean('desktop_notifications').default(true),
+  notificationDuration: integer('notification_duration').default(5),
   mutedServers: jsonb('muted_servers').$type<string[]>().default([]),
   mutedChannels: jsonb('muted_channels').$type<string[]>().default([]),
+  updatedAt: timestamp('updated_at').defaultNow(),
 });
 
 // ===== Relations =====
@@ -448,6 +462,10 @@ export const channelPermissionsRelations = relations(channelPermissions, ({ one 
   role: one(roles, {
     fields: [channelPermissions.roleId],
     references: [roles.id],
+  }),
+  user: one(users, {
+    fields: [channelPermissions.userId],
+    references: [users.id],
   }),
 }));
 

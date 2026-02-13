@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react';
-import { PresenceStatus } from '@stream-party/shared';
+import { PresenceStatus, UserActivity } from '@stream-party/shared';
 import { usePresenceStore, IDLE_TIMEOUT_MS, ACTIVITY_EVENTS } from '../stores/presenceStore';
 import { getSocket } from '../services/socket';
 
@@ -10,7 +10,7 @@ interface UsePresenceOptions {
 
 export function usePresence(options: UsePresenceOptions = {}) {
   const { autoIdle = true, idleTimeout = IDLE_TIMEOUT_MS } = options;
-  const { myStatus, setMyStatus, setMyCustomStatus } = usePresenceStore();
+  const { myStatus, myCustomStatus, myStatusEmoji, myActivity, setMyStatus, setMyCustomStatus, setMyActivity } = usePresenceStore();
   const idleTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lastActivityRef = useRef<number>(Date.now());
 
@@ -18,15 +18,23 @@ export function usePresence(options: UsePresenceOptions = {}) {
   const sendStatusToServer = useCallback((status: PresenceStatus) => {
     const socket = getSocket();
     if (socket.connected) {
-      socket.emit('presence:set', { status });
+      socket.emit('presence:status', { status });
     }
   }, []);
 
   // Send custom status to server
-  const sendCustomStatusToServer = useCallback((customStatus: string | null) => {
+  const sendCustomStatusToServer = useCallback((customStatus: string | null, statusEmoji?: string | null) => {
     const socket = getSocket();
     if (socket.connected) {
-      socket.emit('presence:custom-status', { customStatus });
+      socket.emit('presence:custom', { customStatus, statusEmoji });
+    }
+  }, []);
+
+  // Send activity to server
+  const sendActivityToServer = useCallback((activity: UserActivity | null) => {
+    const socket = getSocket();
+    if (socket.connected) {
+      socket.emit('presence:activity', { activity });
     }
   }, []);
 
@@ -45,10 +53,16 @@ export function usePresence(options: UsePresenceOptions = {}) {
   }, [myStatus, setMyStatus, sendStatusToServer]);
 
   // Set custom status and sync with server
-  const setCustomStatus = useCallback((customStatus: string | null) => {
-    setMyCustomStatus(customStatus);
-    sendCustomStatusToServer(customStatus);
+  const setCustomStatus = useCallback((customStatus: string | null, statusEmoji?: string | null) => {
+    setMyCustomStatus(customStatus, statusEmoji ?? undefined);
+    sendCustomStatusToServer(customStatus, statusEmoji ?? undefined);
   }, [setMyCustomStatus, sendCustomStatusToServer]);
+
+  // Set activity and sync with server
+  const setActivity = useCallback((activity: UserActivity | null) => {
+    setMyActivity(activity);
+    sendActivityToServer(activity);
+  }, [setMyActivity, sendActivityToServer]);
 
   // Handle user activity
   const handleActivity = useCallback(() => {
@@ -163,8 +177,11 @@ export function usePresence(options: UsePresenceOptions = {}) {
   return {
     status: myStatus,
     customStatus: usePresenceStore.getState().myCustomStatus,
+    statusEmoji: usePresenceStore.getState().myStatusEmoji,
+    activity: usePresenceStore.getState().myActivity,
     setStatus,
     setCustomStatus,
+    setActivity,
     requestPresence,
   };
 }

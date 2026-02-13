@@ -6,6 +6,7 @@ import { eq, desc, and, lt } from 'drizzle-orm';
 import { db } from '../db';
 import { notifications } from '../db/schema';
 import { Notification, NotificationType, CreateNotificationInput } from '@stream-party/shared';
+import { notificationPreferencesService } from './notificationPreferencesService';
 import { logger } from '../utils/logger';
 
 // Default number of days to keep notifications
@@ -17,12 +18,19 @@ const notificationCooldowns = new Map<string, Map<string, number>>();
 
 class NotificationService {
   /**
-   * Create a new notification
+   * Create a new notification (checks preferences)
    */
   async create(userId: string, input: CreateNotificationInput): Promise<Notification | null> {
     // Check rate limiting
     if (this.isRateLimited(userId, input.type)) {
       logger.debug(`Notification rate limited for user ${userId}, type ${input.type}`);
+      return null;
+    }
+
+    // Check notification preferences
+    const shouldNotify = await this.checkPreferences(userId, input.type);
+    if (!shouldNotify) {
+      logger.debug(`Notification blocked by preferences for user ${userId}, type ${input.type}`);
       return null;
     }
 
@@ -45,6 +53,38 @@ class NotificationService {
     } catch (error) {
       logger.error('Failed to create notification:', error);
       return null;
+    }
+  }
+
+  /**
+   * Check if notification should be sent based on user preferences
+   */
+  private async checkPreferences(
+    userId: string,
+    type: NotificationType
+  ): Promise<boolean> {
+    try {
+      switch (type) {
+        case 'mention':
+          return await notificationPreferencesService.shouldNotify(userId, 'mention');
+        case 'reply':
+          return await notificationPreferencesService.shouldNotify(userId, 'mention');
+        case 'reaction':
+          // Reactions are less intrusive, could have separate setting
+          return true;
+        case 'join':
+          return await notificationPreferencesService.shouldNotify(userId, 'mention');
+        case 'file':
+          return await notificationPreferencesService.shouldNotify(userId, 'mention');
+        case 'system':
+          return true; // System notifications always go through
+        default:
+          return true;
+      }
+    } catch (error) {
+      // If preferences check fails, allow notification
+      logger.warn('Failed to check notification preferences, allowing notification');
+      return true;
     }
   }
 

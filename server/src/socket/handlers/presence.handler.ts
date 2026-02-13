@@ -4,7 +4,7 @@
  */
 import { Server, Socket } from 'socket.io';
 import { presenceService } from '../../services/presenceService';
-import { PresenceStatus, UserPresence } from '@stream-party/shared';
+import { PresenceStatus, UserPresence, UserActivity } from '@stream-party/shared';
 import { getRoomBySocket } from '../roomState';
 import { logger } from '../../utils/logger';
 
@@ -19,7 +19,101 @@ export function registerPresenceHandlers(io: AnyServer, socket: AnySocket) {
   }
 
   /**
-   * Set user status
+   * Set user status (online, idle, dnd, offline)
+   */
+  socket.on('presence:status', async (data: { status: PresenceStatus }) => {
+    try {
+      const presence = await presenceService.setStatus(user.userId, data.status);
+
+      if (presence) {
+        // Notify all rooms the user is in about the status change
+        const rooms = Array.from(socket.rooms).filter(r => r !== socket.id);
+        
+        for (const roomCode of rooms) {
+          io.to(roomCode).emit('presence:update', {
+            userId: user.userId,
+            presence,
+          });
+        }
+
+        logger.debug(`User ${user.displayName} set status to ${data.status}`);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to set status';
+      logger.error('presence:status error', { error: message });
+    }
+  });
+
+  /**
+   * Set custom status message with optional emoji
+   */
+  socket.on('presence:custom', async (data: { customStatus: string | null; statusEmoji?: string | null }) => {
+    try {
+      const presence = await presenceService.setCustomStatus(user.userId, data.customStatus, data.statusEmoji ?? null);
+
+      if (presence) {
+        // Notify all rooms the user is in
+        const rooms = Array.from(socket.rooms).filter(r => r !== socket.id);
+        
+        for (const roomCode of rooms) {
+          io.to(roomCode).emit('presence:update', {
+            userId: user.userId,
+            presence,
+          });
+        }
+
+        logger.debug(`User ${user.displayName} set custom status: ${data.customStatus || '(cleared)'}${data.statusEmoji ? ' ' + data.statusEmoji : ''}`);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to set custom status';
+      logger.error('presence:custom error', { error: message });
+    }
+  });
+
+  /**
+   * Set user activity (Watching, Playing, Listening)
+   */
+  socket.on('presence:activity', async (data: { activity: UserActivity | null }) => {
+    try {
+      const presence = await presenceService.setActivity(user.userId, data.activity);
+
+      if (presence) {
+        // Notify all rooms the user is in
+        const rooms = Array.from(socket.rooms).filter(r => r !== socket.id);
+        
+        for (const roomCode of rooms) {
+          io.to(roomCode).emit('presence:update', {
+            userId: user.userId,
+            presence,
+          });
+        }
+
+        logger.debug(`User ${user.displayName} set activity: ${data.activity ? data.activity.type + ' ' + data.activity.name : '(cleared)'}`);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to set activity';
+      logger.error('presence:activity error', { error: message });
+    }
+  });
+
+  /**
+   * Get user status data
+   */
+  socket.on('presence:get', async (data: { userId: string }) => {
+    try {
+      const presence = await presenceService.getUserStatus(data.userId);
+      
+      if (presence) {
+        socket.emit('presence:data', { presence });
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to get presence';
+      logger.error('presence:get error', { error: message });
+    }
+  });
+
+  /**
+   * Set user status (legacy - backward compatibility)
    */
   socket.on('presence:set', async (data: { status: PresenceStatus }) => {
     try {

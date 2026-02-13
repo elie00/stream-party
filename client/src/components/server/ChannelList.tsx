@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { cn } from '../../utils/cn';
 import { useServerStore, useCanManageChannels } from '../../stores/serverStore';
 import type { Channel } from '@stream-party/shared';
+import { ChannelSettings } from './ChannelSettings';
 
 interface ChannelListProps {
   onChannelSelect: (channel: Channel) => void;
@@ -12,6 +14,7 @@ export function ChannelList({ onChannelSelect, onCreateChannel, onDeleteChannel 
   const activeServer = useServerStore((state) => state.activeServer);
   const activeChannel = useServerStore((state) => state.activeChannel);
   const canManageChannels = useCanManageChannels();
+  const [settingsChannel, setSettingsChannel] = useState<Channel | null>(null);
 
   if (!activeServer) return null;
 
@@ -19,62 +22,76 @@ export function ChannelList({ onChannelSelect, onCreateChannel, onDeleteChannel 
   const voiceChannels = activeServer.channels.filter((c) => c.type === 'voice');
 
   return (
-    <div className="flex flex-col w-60 bg-gray-800 h-full overflow-hidden">
-      {/* Server header */}
-      <div className="flex items-center justify-between px-4 h-12 border-b border-gray-900 shadow-md">
-        <h2 className="font-semibold text-white truncate">{activeServer.name}</h2>
-        {canManageChannels && (
-          <button
-            onClick={() => onCreateChannel('text')}
-            className="text-gray-400 hover:text-white transition-colors"
-            title="Créer un salon"
+    <>
+      <div className="flex flex-col w-60 bg-gray-800 h-full overflow-hidden">
+        {/* Server header */}
+        <div className="flex items-center justify-between px-4 h-12 border-b border-gray-900 shadow-md">
+          <h2 className="font-semibold text-white truncate">{activeServer.name}</h2>
+          {canManageChannels && (
+            <button
+              onClick={() => onCreateChannel('text')}
+              className="text-gray-400 hover:text-white transition-colors"
+              title="Créer un salon"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+            </button>
+          )}
+        </div>
+
+        {/* Channel list */}
+        <div className="flex-1 overflow-y-auto pt-4 px-2">
+          {/* Text channels */}
+          <ChannelCategory
+            title="Salons textuels"
+            canManage={canManageChannels}
+            onCreate={() => onCreateChannel('text')}
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-          </button>
-        )}
+            {textChannels.map((channel) => (
+              <ChannelItem
+                key={channel.id}
+                channel={channel}
+                isActive={activeChannel?.id === channel.id}
+                canManage={canManageChannels}
+                onClick={() => onChannelSelect(channel)}
+                onDelete={() => onDeleteChannel(channel)}
+                onSettings={() => setSettingsChannel(channel)}
+              />
+            ))}
+          </ChannelCategory>
+
+          {/* Voice channels */}
+          <ChannelCategory
+            title="Salons vocaux"
+            canManage={canManageChannels}
+            onCreate={() => onCreateChannel('voice')}
+          >
+            {voiceChannels.map((channel) => (
+              <ChannelItem
+                key={channel.id}
+                channel={channel}
+                isActive={activeChannel?.id === channel.id}
+                canManage={canManageChannels}
+                onClick={() => onChannelSelect(channel)}
+                onDelete={() => onDeleteChannel(channel)}
+                onSettings={() => setSettingsChannel(channel)}
+              />
+            ))}
+          </ChannelCategory>
+        </div>
       </div>
 
-      {/* Channel list */}
-      <div className="flex-1 overflow-y-auto pt-4 px-2">
-        {/* Text channels */}
-        <ChannelCategory
-          title="Salons textuels"
-          canManage={canManageChannels}
-          onCreate={() => onCreateChannel('text')}
-        >
-          {textChannels.map((channel) => (
-            <ChannelItem
-              key={channel.id}
-              channel={channel}
-              isActive={activeChannel?.id === channel.id}
-              canManage={canManageChannels}
-              onClick={() => onChannelSelect(channel)}
-              onDelete={() => onDeleteChannel(channel)}
-            />
-          ))}
-        </ChannelCategory>
-
-        {/* Voice channels */}
-        <ChannelCategory
-          title="Salons vocaux"
-          canManage={canManageChannels}
-          onCreate={() => onCreateChannel('voice')}
-        >
-          {voiceChannels.map((channel) => (
-            <ChannelItem
-              key={channel.id}
-              channel={channel}
-              isActive={activeChannel?.id === channel.id}
-              canManage={canManageChannels}
-              onClick={() => onChannelSelect(channel)}
-              onDelete={() => onDeleteChannel(channel)}
-            />
-          ))}
-        </ChannelCategory>
-      </div>
-    </div>
+      {/* Channel Settings Modal */}
+      {settingsChannel && activeServer && (
+        <ChannelSettings
+          channel={settingsChannel}
+          server={activeServer}
+          isOpen={!!settingsChannel}
+          onClose={() => setSettingsChannel(null)}
+        />
+      )}
+    </>
   );
 }
 
@@ -115,9 +132,10 @@ interface ChannelItemProps {
   canManage: boolean;
   onClick: () => void;
   onDelete: () => void;
+  onSettings: () => void;
 }
 
-function ChannelItem({ channel, isActive, canManage, onClick, onDelete }: ChannelItemProps) {
+function ChannelItem({ channel, isActive, canManage, onClick, onDelete, onSettings }: ChannelItemProps) {
   return (
     <div
       className={cn(
@@ -150,6 +168,19 @@ function ChannelItem({ channel, isActive, canManage, onClick, onDelete }: Channe
           <button
             onClick={(e) => {
               e.stopPropagation();
+              onSettings();
+            }}
+            className="p-1 text-gray-400 hover:text-white transition-colors"
+            title="Paramètres du salon"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
               onDelete();
             }}
             className="p-1 text-gray-400 hover:text-red-400 transition-colors"
@@ -164,3 +195,5 @@ function ChannelItem({ channel, isActive, canManage, onClick, onDelete }: Channe
     </div>
   );
 }
+
+export default ChannelList;

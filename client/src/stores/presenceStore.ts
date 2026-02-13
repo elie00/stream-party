@@ -1,17 +1,20 @@
 import { create } from 'zustand';
-import { PresenceStatus, UserPresence } from '@stream-party/shared';
+import { PresenceStatus, UserPresence, UserActivity } from '@stream-party/shared';
 
 interface PresenceState {
   // Current user's presence
   myStatus: PresenceStatus;
   myCustomStatus: string | null;
+  myStatusEmoji: string | null;
+  myActivity: UserActivity | null;
   
   // Other users' presence (userId -> presence)
   userPresences: Map<string, UserPresence>;
   
   // Actions
   setMyStatus: (status: PresenceStatus) => void;
-  setMyCustomStatus: (customStatus: string | null) => void;
+  setMyCustomStatus: (customStatus: string | null, emoji?: string | null) => void;
+  setMyActivity: (activity: UserActivity | null) => void;
   updateUserPresence: (userId: string, presence: UserPresence) => void;
   updateBulkPresences: (presences: Record<string, UserPresence>) => void;
   getUserStatus: (userId: string) => PresenceStatus;
@@ -22,14 +25,20 @@ interface PresenceState {
 export const usePresenceStore = create<PresenceState>((set, get) => ({
   myStatus: 'online',
   myCustomStatus: null,
+  myStatusEmoji: null,
+  myActivity: null,
   userPresences: new Map(),
 
   setMyStatus: (status) => {
     set({ myStatus: status });
   },
 
-  setMyCustomStatus: (customStatus) => {
-    set({ myCustomStatus: customStatus });
+  setMyCustomStatus: (customStatus, emoji = null) => {
+    set({ myCustomStatus: customStatus, myStatusEmoji: emoji });
+  },
+
+  setMyActivity: (activity) => {
+    set({ myActivity: activity });
   },
 
   updateUserPresence: (userId, presence) => {

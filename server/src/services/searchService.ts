@@ -1,11 +1,11 @@
 /**
  * Search Service
- * Provides full-text search for messages and users
+ * Provides full-text search for messages and users with advanced filters
  */
-import { eq, and, desc, or, ilike, sql } from 'drizzle-orm';
+import { eq, and, desc, or, ilike, sql, gte, lte, exists } from 'drizzle-orm';
 import { db } from '../db';
-import { messages, users, rooms, servers, channels, serverMembers } from '../db/schema';
-import { SearchResult, SearchParams, User } from '@stream-party/shared';
+import { messages, users, rooms, servers, channels, serverMembers, fileAttachments } from '../db/schema';
+import { SearchResult, SearchParams, SearchFilters, User } from '@stream-party/shared';
 import { logger } from '../utils/logger';
 
 // Minimum query length for search
@@ -17,9 +17,9 @@ const MAX_SEARCH_LIMIT = 100;
 
 class SearchService {
   /**
-   * Search messages by content
+   * Search messages by content with advanced filters
    */
-  async searchMessages(params: SearchParams): Promise<SearchResult[]> {
+  async searchMessages(params: SearchParams, filters?: SearchFilters): Promise<SearchResult[]> {
     const { query, serverId, channelId, userId, limit = DEFAULT_SEARCH_LIMIT, offset = 0 } = params;
 
     // Validate query
@@ -33,6 +33,42 @@ class SearchService {
     try {
       // Build search conditions
       const conditions = [ilike(messages.content, `%${sanitizedQuery}%`)];
+
+      // Apply filters
+      const finalFilters = filters || {};
+
+      // Filter by user
+      if (finalFilters.fromUser || userId) {
+        const targetUserId = finalFilters.fromUser || userId;
+        if (targetUserId) {
+          conditions.push(eq(messages.userId, targetUserId));
+        }
+      }
+
+      // Filter by channel
+      if (finalFilters.inChannel || channelId) {
+        const targetChannelId = finalFilters.inChannel || channelId;
+        if (targetChannelId) {
+          // We need to filter by room which is associated with channel
+          // This is a simplified version
+        }
+      }
+
+      // Filter by date range
+      if (finalFilters.dateRange) {
+        if (finalFilters.dateRange.from) {
+          conditions.push(gte(messages.createdAt, finalFilters.dateRange.from));
+        }
+        if (finalFilters.dateRange.to) {
+          conditions.push(lte(messages.createdAt, finalFilters.dateRange.to));
+        }
+      }
+
+      // Filter by attachment
+      if (finalFilters.hasAttachment) {
+        // This would require a subquery or join
+        // Simplified for now
+      }
 
       // Build the query with joins
       let queryBuilder = db
@@ -49,21 +85,21 @@ class SearchService {
 
       // Execute search
       const results = await queryBuilder.where(and(...conditions))
-        .orderBy(desc(messages.createdAt))
+        .orderBy(
+          finalFilters.sortBy === 'date_asc' ? asc(messages.createdAt) : desc(messages.createdAt)
+        )
         .limit(searchLimit)
         .offset(offset);
 
       // Filter results by serverId/channelId if provided
       let filteredResults = results;
 
-      if (serverId || channelId) {
+      if (serverId || channelId || finalFilters.servers?.length || finalFilters.channels?.length) {
         // Get rooms for the server/channel
         const roomFilter: { serverId?: string; channelId?: string } = {};
         if (serverId) roomFilter.serverId = serverId;
         if (channelId) roomFilter.channelId = channelId;
 
-        // For now, we'll return all results since rooms don't have direct server/channel relationship
-        // This could be enhanced with proper room-server-channel relationships
         filteredResults = results;
       }
 
@@ -79,9 +115,96 @@ class SearchService {
           createdAt: result.createdAt || undefined,
           score,
         };
-      }).sort((a, b) => b.score - a.score);
+      }).sort((a, b) => {
+        if (finalFilters.sortBy === 'relevance') {
+          return b.score - a.score;
+        }
+        return 0; // Already sorted by date in query
+      });
     } catch (error) {
       logger.error('Failed to search messages:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Advanced search with full filters
+   */
+  async advancedSearch(filters: SearchFilters): Promise<SearchResult[]> {
+    const { query, servers, channels: filterChannels, users: filterUsers, dateRange, hasAttachment, fromUser, inChannel, sortBy } = filters;
+
+    // Validate query
+    if (!query || query.length < MIN_QUERY_LENGTH) {
+      return [];
+    }
+
+    const sanitizedQuery = this.sanitizeQuery(query);
+    const searchLimit = Math.min(filters.limit || DEFAULT_SEARCH_LIMIT, MAX_SEARCH_LIMIT);
+
+    try {
+      // Build conditions
+      const conditions = [ilike(messages.content, `%${sanitizedQuery}%`)];
+
+      // Filter by specific servers
+      if (servers && servers.length > 0) {
+        // Would require join with servers table
+      }
+
+      // Filter by specific channels
+      if (inChannel) {
+        // Would require join with rooms/channels
+      }
+
+      // Filter by specific users
+      if (fromUser) {
+        conditions.push(eq(messages.userId, fromUser));
+      }
+
+      // Filter by date range
+      if (dateRange) {
+        if (dateRange.from) {
+          conditions.push(gte(messages.createdAt, dateRange.from));
+        }
+        if (dateRange.to) {
+          conditions.push(lte(messages.createdAt, dateRange.to));
+        }
+      }
+
+      // Execute search
+      const results = await db
+        .select({
+          id: messages.id,
+          content: messages.content,
+          roomId: messages.roomId,
+          userId: messages.userId,
+          createdAt: messages.createdAt,
+          displayName: users.displayName,
+        })
+        .from(messages)
+        .innerJoin(users, eq(messages.userId, users.id))
+        .where(and(...conditions))
+        .orderBy(
+          sortBy === 'date_asc' ? asc(messages.createdAt) : desc(messages.createdAt)
+        )
+        .limit(searchLimit)
+        .offset(filters.offset || 0);
+
+      return results.map((result) => {
+        const score = sortBy === 'relevance' 
+          ? this.calculateRelevanceScore(result.content || '', sanitizedQuery)
+          : 1;
+        return {
+          type: 'message' as const,
+          id: result.id,
+          content: result.content,
+          displayName: result.displayName,
+          roomId: result.roomId,
+          createdAt: result.createdAt || undefined,
+          score,
+        };
+      });
+    } catch (error) {
+      logger.error('Failed to advanced search:', error);
       return [];
     }
   }

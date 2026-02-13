@@ -5,7 +5,7 @@
 import { eq, inArray } from 'drizzle-orm';
 import { db } from '../db';
 import { userPresence, users } from '../db/schema';
-import { PresenceStatus, UserPresence } from '@stream-party/shared';
+import { PresenceStatus, UserPresence, UserActivity, ActivityType } from '@stream-party/shared';
 import { logger } from '../utils/logger';
 
 // In-memory presence cache for fast access
@@ -142,13 +142,14 @@ class PresenceService {
   /**
    * Set custom status message
    */
-  async setCustomStatus(userId: string, customStatus: string | null): Promise<UserPresence | null> {
+  async setCustomStatus(userId: string, customStatus: string | null, statusEmoji?: string | null): Promise<UserPresence | null> {
     const now = new Date();
 
     // Update database
     await db.update(userPresence)
       .set({
         customStatus,
+        statusEmoji: statusEmoji ?? null,
         updatedAt: now,
       })
       .where(eq(userPresence.userId, userId));
@@ -157,18 +158,83 @@ class PresenceService {
     const cached = presenceCache.get(userId);
     if (cached) {
       cached.customStatus = customStatus;
+      cached.statusEmoji = statusEmoji ?? null;
     } else {
       // Need to fetch from DB first
       const presence = await this.getPresenceFromDb(userId);
       if (presence) {
         presence.customStatus = customStatus;
+        presence.statusEmoji = statusEmoji ?? null;
         presenceCache.set(userId, presence);
       }
     }
 
-    logger.info(`User ${userId} custom status set to: ${customStatus || '(cleared)'}`);
+    logger.info(`User ${userId} custom status set to: ${customStatus || '(cleared)'}${statusEmoji ? ' ' + statusEmoji : ''}`);
 
     return presenceCache.get(userId) || null;
+  }
+
+  /**
+   * Set user activity (Watching, Playing, Listening)
+   */
+  async setActivity(userId: string, activity: UserActivity | null): Promise<UserPresence | null> {
+    const now = new Date();
+
+    // Update database
+    await db.update(userPresence)
+      .set({
+        lastActivity: activity ? {
+          type: activity.type,
+          name: activity.name,
+          startedAt: activity.startedAt ?? now.toISOString(),
+        } : null,
+        updatedAt: now,
+      })
+      .where(eq(userPresence.userId, userId));
+
+    // Update cache
+    const cached = presenceCache.get(userId);
+    if (cached) {
+      cached.lastActivity = activity ? {
+        type: activity.type,
+        name: activity.name,
+        startedAt: activity.startedAt ?? now.toISOString(),
+      } : undefined;
+    } else {
+      // Need to fetch from DB first
+      const presence = await this.getPresenceFromDb(userId);
+      if (presence) {
+        presence.lastActivity = activity ? {
+          type: activity.type,
+          name: activity.name,
+          startedAt: activity.startedAt ?? now.toISOString(),
+        } : undefined;
+        presenceCache.set(userId, presence);
+      }
+    }
+
+    logger.info(`User ${userId} activity set to: ${activity ? activity.type + ' ' + activity.name : '(cleared)'}`);
+
+    return presenceCache.get(userId) || null;
+  }
+
+  /**
+   * Get complete user status data
+   */
+  async getUserStatus(userId: string): Promise<UserPresence | null> {
+    // Check cache first
+    const cached = presenceCache.get(userId);
+    if (cached) {
+      return cached;
+    }
+
+    // Fetch from database
+    const presence = await this.getPresenceFromDb(userId);
+    if (presence) {
+      presenceCache.set(userId, presence);
+    }
+
+    return presence;
   }
 
   /**
@@ -267,6 +333,8 @@ class PresenceService {
       userId: presence.userId,
       status: presence.status as PresenceStatus,
       customStatus: presence.customStatus,
+      statusEmoji: presence.statusEmoji ?? undefined,
+      lastActivity: presence.lastActivity ?? undefined,
       lastSeenAt: presence.lastSeenAt ?? new Date(),
     };
   }

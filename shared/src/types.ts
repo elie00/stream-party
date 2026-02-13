@@ -162,6 +162,7 @@ export interface ServerToClientEvents {
   // Presence events
   'presence:update': (data: { userId: string; presence: UserPresence }) => void;
   'presence:bulk': (data: { presences: Record<string, UserPresence> }) => void;
+  'presence:data': (data: { presence: UserPresence }) => void;
   // Notification events
   'notification:new': (data: { notification: Notification }) => void;
   'notification:read': (data: { notificationId: number }) => void;
@@ -246,6 +247,10 @@ export interface ClientToServerEvents {
   'queue:vote': (data: { videoId: string }) => void;
   'queue:request': () => void;
   // Presence events
+  'presence:status': (data: { status: PresenceStatus }) => void;
+  'presence:custom': (data: { customStatus: string | null; statusEmoji?: string | null }) => void;
+  'presence:activity': (data: { activity: UserActivity | null }) => void;
+  'presence:get': (data: { userId: string }) => void;
   'presence:set': (data: { status: PresenceStatus }) => void;
   'presence:custom-status': (data: { customStatus: string | null }) => void;
   'presence:request': (data: { userIds: string[] }) => void;
@@ -534,19 +539,41 @@ export interface QueueSyncEvents {
 // ===== Presence Types =====
 export type PresenceStatus = 'online' | 'idle' | 'dnd' | 'offline';
 
+export type ActivityType = 'watching' | 'playing' | 'listening' | 'streaming';
+
+export interface UserActivity {
+  type: ActivityType;
+  name: string;
+  startedAt?: string;
+}
+
 export interface UserPresence {
   userId: string;
   status: PresenceStatus;
   customStatus?: string | null;
+  statusEmoji?: string | null;
+  lastActivity?: UserActivity | null;
   lastSeenAt: Date;
+}
+
+export interface UserStatusData {
+  userId: string;
+  status: PresenceStatus;
+  customStatus?: string;
+  statusEmoji?: string;
+  lastActivity?: UserActivity;
 }
 
 export interface NotificationPreferences {
   userId: string;
-  enableDesktop: boolean;
-  enableSound: boolean;
-  enableMentions: boolean;
-  enableDirectMessages: boolean;
+  allMessages: boolean;
+  mentions: boolean;
+  directMessages: boolean;
+  serverInvites: boolean;
+  friendRequests: boolean;
+  sounds: boolean;
+  desktopNotifications: boolean;
+  notificationDuration: number;
   mutedServers: string[];
   mutedChannels: string[];
 }
@@ -585,6 +612,35 @@ export type Permission =
   | 'manage_messages'
   | 'view_audit_log'
   | 'manage_server';
+
+// Permissions au niveau du canal
+export type ChannelPermission = 
+  | 'view_channel'
+  | 'manage_channel'
+  | 'manage_permissions'
+  | 'send_messages'
+  | 'manage_messages'
+  | 'embed_links'
+  | 'attach_files'
+  | 'read_message_history'
+  | 'use_slash_commands'
+  | 'use_voice'
+  | 'connect'
+  | 'speak'
+  | 'mute_members'
+  | 'deafen_members'
+  | 'move_members'
+  | 'stream'
+  | 'priority_speaker';
+
+export interface ChannelPermissionOverride {
+  id: number;
+  channelId: string;
+  roleId?: number;
+  userId?: string;
+  allow: ChannelPermission[];
+  deny: ChannelPermission[];
+}
 
 export interface Role {
   id: number;
@@ -689,6 +745,19 @@ export interface SearchResult {
   roomId?: string;
   createdAt?: Date;
   score: number;
+}
+
+export interface SearchFilters {
+  query: string;
+  servers?: string[];
+  channels?: string[];
+  users?: string[];
+  dateRange?: { from: Date; to: Date };
+  hasAttachment?: boolean;
+  fromUser?: string;
+  inChannel?: string;
+  isPinned?: boolean;
+  sortBy?: 'relevance' | 'date_desc' | 'date_asc';
 }
 
 export interface SearchParams {
