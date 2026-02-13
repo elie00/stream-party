@@ -40,12 +40,20 @@ export interface Message {
   userId: string;
   content: string;
   createdAt: Date;
+  // Thread/Reply fields
+  parentId?: string;
+  threadId?: string;
+  isDeleted?: boolean;
+  deletedAt?: Date;
+  editedAt?: Date;
 }
 
 export interface ChatMessage extends Message {
   user: { displayName: string };
   reactions?: MessageReaction[];
   embeds?: MessageEmbed[];
+  replyCount?: number;
+  isEditing?: boolean; // Client-only
 }
 
 // ===== Message Reaction =====
@@ -166,6 +174,13 @@ export interface ServerToClientEvents {
   'dm:history': (data: { channelId: string; messages: DirectMessage[] }) => void;
   'dm:typing': (data: { channelId: string; userId: string; isTyping: boolean }) => void;
   'dm:error': (data: { message: string }) => void;
+  // Chat edit/delete events
+  'message:edited': (data: { messageId: string; content: string; editedAt: Date }) => void;
+  'message:deleted': (data: { messageId: string }) => void;
+  // Thread events
+  'thread:opened': (data: { thread: MessageThread }) => void;
+  'thread:reply': (data: { reply: ChatMessage; replyCount: number }) => void;
+  'thread:replies': (data: { replies: ChatMessage[]; hasMore: boolean }) => void;
   'error': (message: string) => void;
 }
 
@@ -246,6 +261,14 @@ export interface ClientToServerEvents {
   'dm:history': (data: { channelId: string; cursor?: string; limit?: number }) => void;
   'dm:typing-start': (data: { channelId: string }) => void;
   'dm:typing-stop': (data: { channelId: string }) => void;
+  // Message edit/delete events
+  'message:edit': (data: { messageId: string; content: string }) => void;
+  'message:delete': (data: { messageId: string }) => void;
+  // Thread events
+  'message:reply': (data: { content: string; parentId: string }) => void;
+  'thread:open': (data: { parentMessageId: string }) => void;
+  'thread:close': () => void;
+  'thread:load-replies': (data: { threadId: string; limit?: number; before?: string }) => void;
 }
 
 // SFU Types
@@ -717,4 +740,49 @@ export interface SearchServerEvents {
   'search:results': (data: { results: SearchResult[] }) => void;
   'search:users-results': (data: { users: { id: string; displayName: string }[] }) => void;
   'search:error': (data: { message: string }) => void;
+}
+
+// ===== Message Thread Types =====
+export interface MessageThread {
+  id: string;
+  roomId: string;
+  parentMessage: ChatMessage;
+  replies: ChatMessage[];
+  lastReplyAt: Date;
+  replyCount: number;
+}
+
+// ===== Chat Socket Events (Edit/Delete/Threads) =====
+export interface ChatSocketEvents {
+  // Existing
+  'chat:message': (data: { content: string }) => void;
+  'chat:history': (data: { cursor?: string; limit?: number }) => void;
+  'chat:typing-start': () => void;
+  'chat:typing-stop': () => void;
+  
+  // New - Edit/Delete
+  'message:edit': (data: { messageId: string; content: string }) => void;
+  'message:delete': (data: { messageId: string }) => void;
+  
+  // New - Threads/Replies
+  'message:reply': (data: { channelId: string; content: string; parentId: string }) => void;
+  'thread:open': (data: { parentMessageId: string }) => void;
+  'thread:close': () => void;
+  'thread:load-replies': (data: { threadId: string; limit: number; before?: string }) => void;
+}
+
+export interface ChatServerEvents {
+  // Existing
+  'chat:message': (message: ChatMessage) => void;
+  'chat:history': (messages: ChatMessage[]) => void;
+  'chat:typing': (data: { userId: string; isTyping: boolean }) => void;
+  
+  // New - Edit/Delete
+  'message:edited': (data: { messageId: string; content: string; editedAt: Date }) => void;
+  'message:deleted': (data: { messageId: string }) => void;
+  
+  // New - Threads/Replies
+  'thread:opened': (data: { thread: MessageThread }) => void;
+  'thread:reply': (data: { reply: ChatMessage; replyCount: number }) => void;
+  'thread:replies': (data: { replies: ChatMessage[]; hasMore: boolean }) => void;
 }

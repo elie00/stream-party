@@ -16,9 +16,27 @@ interface ChatInputProps {
   onTypingStart: () => void;
   onTypingStop: () => void;
   participants?: Array<{ userId: string; displayName: string }>;
+  // Edit/Reply props
+  editingMessage?: { id: string; content: string } | null;
+  replyingToMessage?: { id: string; userName: string } | null;
+  onCancelEdit?: () => void;
+  onCancelReply?: () => void;
+  onSubmitEdit?: (messageId: string, content: string) => void;
+  onSubmitReply?: (content: string, parentId: string) => void;
 }
 
-export function ChatInput({ onSend, onTypingStart, onTypingStop, participants = [] }: ChatInputProps) {
+export function ChatInput({ 
+  onSend, 
+  onTypingStart, 
+  onTypingStop, 
+  participants = [],
+  editingMessage,
+  replyingToMessage,
+  onCancelEdit,
+  onCancelReply,
+  onSubmitEdit,
+  onSubmitReply,
+}: ChatInputProps) {
   const [value, setValue] = useState('');
   const [showFileUpload, setShowFileUpload] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
@@ -32,6 +50,20 @@ export function ChatInput({ onSend, onTypingStart, onTypingStop, participants = 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const mentionsRef = useRef<HTMLDivElement>(null);
+
+  // Set initial value when editing a message
+  useEffect(() => {
+    if (editingMessage) {
+      setValue(editingMessage.content);
+    }
+  }, [editingMessage]);
+
+  // Set initial value when replying to a message
+  useEffect(() => {
+    if (replyingToMessage && !editingMessage) {
+      // Keep current value but will show reply indicator
+    }
+  }, [replyingToMessage, editingMessage]);
 
   // Filter participants based on mention query
   const filteredParticipants = useMemo(() => {
@@ -104,6 +136,21 @@ export function ChatInput({ onSend, onTypingStart, onTypingStop, participants = 
 
     if (!trimmed && !hasFiles) return;
 
+    // Handle edit mode
+    if (editingMessage && onSubmitEdit) {
+      onSubmitEdit(editingMessage.id, trimmed);
+      setValue('');
+      onCancelEdit?.();
+      return;
+    }
+
+    // Handle reply mode
+    if (replyingToMessage && onSubmitReply) {
+      onSubmitReply(trimmed, replyingToMessage.id);
+      setValue('');
+      onCancelReply?.();
+    }
+
     // Upload any pending files that haven't been uploaded yet
     const attachmentIds: string[] = [];
 
@@ -152,7 +199,7 @@ export function ChatInput({ onSend, onTypingStart, onTypingStop, participants = 
       isTypingRef.current = false;
       onTypingStop();
     }
-  }, [value, pendingFiles, onSend, onTypingStop]);
+  }, [value, pendingFiles, onSend, onTypingStop, editingMessage, replyingToMessage, onSubmitEdit, onCancelEdit, onSubmitReply, onCancelReply]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -324,6 +371,47 @@ export function ChatInput({ onSend, onTypingStart, onTypingStop, participants = 
       onDragOver={handleDragOver}
       onDrop={handleDrop}
     >
+      {/* Edit/Reply indicator */}
+      {(editingMessage || replyingToMessage) && (
+        <div className="mb-2 flex items-center justify-between bg-[#252525] rounded-lg px-3 py-2">
+          <div className="flex items-center gap-2">
+            {editingMessage ? (
+              <>
+                <svg className="w-4 h-4 text-[#7c3aed]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+                <span className="text-sm text-white">Modifier le message</span>
+              </>
+            ) : replyingToMessage ? (
+              <>
+                <svg className="w-4 h-4 text-[#7c3aed]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                </svg>
+                <span className="text-sm text-white">
+                  Répondre à <span className="font-medium">{replyingToMessage.userName}</span>
+                </span>
+              </>
+            ) : null}
+          </div>
+          <button
+            onClick={() => {
+              if (editingMessage) {
+                onCancelEdit?.();
+                setValue('');
+              }
+              if (replyingToMessage) {
+                onCancelReply?.();
+              }
+            }}
+            className="text-[#a0a0a0] hover:text-white"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      )}
+
       {/* Pending files preview */}
       {pendingFiles.length > 0 && (
         <div className="mb-2 flex flex-wrap gap-2">

@@ -1,22 +1,39 @@
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { useChatStore } from '../../stores/chatStore';
 import { useAuthStore } from '../../stores/authStore';
 import { getSocket } from '../../services/socket';
 import { MessageList } from './MessageList';
 import { ChatInput } from './ChatInput';
 import { TypingIndicator } from './TypingIndicator';
+import { ThreadView } from './ThreadView';
+import type { ChatMessage } from '@stream-party/shared';
 
 interface ChatPanelProps {
   onClose: () => void;
 }
 
 export function ChatPanel({ onClose }: ChatPanelProps) {
-  const { messages, typingUsers, hasMore, oldestCursor } = useChatStore();
+  const { 
+    messages, 
+    typingUsers, 
+    hasMore, 
+    oldestCursor,
+    editingMessage,
+    replyingToMessage,
+    activeThread,
+    setEditingMessage,
+    setReplyingToMessage,
+    updateMessage,
+    removeMessage,
+    setActiveThread,
+    addReply,
+  } = useChatStore();
   const userId = useAuthStore((state) => state.userId);
+  const [showThread, setShowThread] = useState(false);
 
-  const handleSend = useCallback((content: string) => {
+  const handleSend = useCallback((content: string, attachments?: string[]) => {
     const socket = getSocket();
-    socket.emit('chat:message', { content });
+    socket.emit('chat:message', { content, attachments });
   }, []);
 
   const handleTypingStart = useCallback(() => {
@@ -44,6 +61,80 @@ export function ChatPanel({ onClose }: ChatPanelProps) {
     const socket = getSocket();
     socket.emit('reaction:remove', { messageId, reactionId });
   }, []);
+
+  // Edit handlers
+  const handleEdit = useCallback((message: ChatMessage) => {
+    setEditingMessage(message);
+  }, [setEditingMessage]);
+
+  const handleCancelEdit = useCallback(() => {
+    setEditingMessage(null);
+  }, [setEditingMessage]);
+
+  const handleSubmitEdit = useCallback((messageId: string, content: string) => {
+    const socket = getSocket();
+    socket.emit('message:edit', { messageId, content });
+    setEditingMessage(null);
+  }, [setEditingMessage]);
+
+  // Delete handler
+  const handleDelete = useCallback((messageId: string) => {
+    const socket = getSocket();
+    socket.emit('message:delete', { messageId });
+  }, []);
+
+  // Reply handler
+  const handleReply = useCallback((message: ChatMessage) => {
+    setReplyingToMessage({ 
+      id: message.id, 
+      userName: message.user.displayName 
+    });
+  }, [setReplyingToMessage]);
+
+  const handleCancelReply = useCallback(() => {
+    setReplyingToMessage(null);
+  }, [setReplyingToMessage]);
+
+  const handleSubmitReply = useCallback((content: string, parentId: string) => {
+    const socket = getSocket();
+    socket.emit('message:reply', { content, parentId });
+    setReplyingToMessage(null);
+  }, [setReplyingToMessage]);
+
+  // Thread handlers
+  const handleOpenThread = useCallback((message: ChatMessage) => {
+    const socket = getSocket();
+    socket.emit('thread:open', { parentMessageId: message.id });
+  }, []);
+
+  const handleCloseThread = useCallback(() => {
+    setShowThread(false);
+    setActiveThread(null);
+  }, [setActiveThread]);
+
+  // Listen for socket events
+  const socket = getSocket();
+  
+  // Handle edited message
+  socket.on('message:edited', (data: { messageId: string; content: string; editedAt: Date }) => {
+    updateMessage(data.messageId, data.content, new Date(data.editedAt));
+  });
+
+  // Handle deleted message
+  socket.on('message:deleted', (data: { messageId: string }) => {
+    removeMessage(data.messageId);
+  });
+
+  // Handle thread opened
+  socket.on('thread:opened', (data: { thread: { id: string; parentMessage: ChatMessage; replies: ChatMessage[]; replyCount: number } }) => {
+    setActiveThread(data.thread as any);
+    setShowThread(true);
+  });
+
+  // Handle new reply
+  socket.on('thread:reply', (data: { reply: ChatMessage; replyCount: number }) => {
+    addReply(data.reply);
+  });
 
   return (
     <div className="w-80 bg-[#1a1a1a] border-l border-[#333] flex flex-col">
@@ -74,6 +165,10 @@ export function ChatPanel({ onClose }: ChatPanelProps) {
         onLoadMore={handleLoadMore}
         onAddReaction={handleAddReaction}
         onRemoveReaction={handleRemoveReaction}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
+        onReply={handleReply}
+        onOpenThread={handleOpenThread}
       />
 
       {/* Typing indicator */}
@@ -84,7 +179,25 @@ export function ChatPanel({ onClose }: ChatPanelProps) {
         onSend={handleSend}
         onTypingStart={handleTypingStart}
         onTypingStop={handleTypingStop}
+        editingMessage={editingMessage ? { id: editingMessage.id, content: editingMessage.content } : null}
+        replyingToMessage={replyingToMessage ? { id: replyingToMessage.id, userName: replyingToMessage.userName } : null}
+        onCancelEdit={handleCancelEdit}
+        onCancelReply={handleCancelReply}
+        onSubmitEdit={handleSubmitEdit}
+        onSubmitReply={handleSubmitReply}
       />
+
+      {/* Thread View Modal */}
+      {showThread && activeThread && (
+        <ThreadView
+          thread={activeThread}
+          currentUserId={userId}
+          onClose={handleCloseThread}
+          onAddReaction={handleAddReaction}
+          onRemoveReaction={handleRemoveReaction}
+          onReply={handleSubmitReply}
+        />
+      )}
     </div>
   );
 }

@@ -26,6 +26,12 @@ export const messages = pgTable('messages', {
   userId: uuid('user_id').notNull().references(() => users.id),
   content: text('content').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
+  // Thread/Reply fields
+  parentId: uuid('parent_id'), // Pour les replies
+  threadId: uuid('thread_id'), // Pour identifier le thread
+  isDeleted: boolean('is_deleted').default(false), // Soft delete
+  deletedAt: timestamp('deleted_at'),
+  editedAt: timestamp('edited_at'),
 });
 
 export const messageReactions = pgTable('message_reactions', {
@@ -46,6 +52,15 @@ export const messageEmbeds = pgTable('message_embeds', {
   image: text('image'),
   siteName: text('site_name'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
+});
+
+// ===== Message Threads =====
+export const messageThreads = pgTable('message_threads', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  roomId: uuid('room_id').notNull().references(() => rooms.id),
+  parentMessageId: uuid('parent_message_id').notNull().references(() => messages.id),
+  lastReplyAt: timestamp('last_reply_at').defaultNow(),
+  replyCount: integer('reply_count').default(0),
 });
 
 export const roomParticipants = pgTable('room_participants', {
@@ -281,6 +296,13 @@ export const messagesRelations = relations(messages, ({ one, many }) => ({
   reactions: many(messageReactions),
   embeds: many(messageEmbeds),
   attachments: many(fileAttachments),
+  parent: one(messages, {
+    fields: [messages.parentId],
+    references: [messages.id],
+  }),
+  replies: many(messages, {
+    references: [(messages) => messages.parentId],
+  }),
 }));
 
 export const messageReactionsRelations = relations(messageReactions, ({ one }) => ({
@@ -297,6 +319,18 @@ export const messageReactionsRelations = relations(messageReactions, ({ one }) =
 export const messageEmbedsRelations = relations(messageEmbeds, ({ one }) => ({
   message: one(messages, {
     fields: [messageEmbeds.messageId],
+    references: [messages.id],
+  }),
+}));
+
+// Message Threads relations
+export const messageThreadsRelations = relations(messageThreads, ({ one }) => ({
+  room: one(rooms, {
+    fields: [messageThreads.roomId],
+    references: [rooms.id],
+  }),
+  parentMessage: one(messages, {
+    fields: [messageThreads.parentMessageId],
     references: [messages.id],
   }),
 }));

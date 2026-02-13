@@ -2,12 +2,13 @@ import { Server, Socket } from 'socket.io';
 import type { ClientToServerEvents, ServerToClientEvents, ChatMessage, MessageEmbed } from '@stream-party/shared';
 import { MAX_CHAT_MESSAGE_LENGTH, CHAT_RATE_LIMIT } from '@stream-party/shared';
 import { db, schema } from '../../db/index';
-import { eq, desc, lt, and } from 'drizzle-orm';
+import { eq, desc, lt, and, sql } from 'drizzle-orm';
 import { getRoomBySocket, getRoomParticipants } from '../roomState';
 import { validateChatMessage } from '../../utils/validators';
 import { generateEmbedsForMessage } from '../../services/embedService';
 import { notificationService } from '../../services/notificationService';
 import { sendNotificationToUser } from './notification.handler';
+import * as chatService from '../../services/chatService';
 
 type TypedSocket = Socket<ClientToServerEvents, ServerToClientEvents>;
 type TypedServer = Server<ClientToServerEvents, ServerToClientEvents>;
@@ -191,6 +192,11 @@ export function registerChatHandlers(io: TypedServer, socket: TypedSocket): void
         userId: string;
         content: string;
         createdAt: Date;
+        parentId: string | null;
+        threadId: string | null;
+        isDeleted: boolean;
+        deletedAt: Date | null;
+        editedAt: Date | null;
         user: { displayName: string } | null;
         reactions: Array<{ id: string; messageId: string; userId: string; emoji: string; createdAt: Date }>;
         embeds: Array<{ id: string; messageId: string; type: string; url: string; title: string | null; description: string | null; image: string | null; siteName: string | null; createdAt: Date }>;
@@ -261,6 +267,12 @@ export function registerChatHandlers(io: TypedServer, socket: TypedSocket): void
           siteName: e.siteName || undefined,
           createdAt: e.createdAt,
         })) || [],
+        // Thread fields
+        parentId: m.parentId || undefined,
+        threadId: m.threadId || undefined,
+        isDeleted: m.isDeleted || false,
+        deletedAt: m.deletedAt || undefined,
+        editedAt: m.editedAt || undefined,
       }));
 
       socket.emit('chat:history', chatMessages);
@@ -280,6 +292,132 @@ export function registerChatHandlers(io: TypedServer, socket: TypedSocket): void
     const room = getRoomBySocket(socket.id);
     if (!room) return;
     socket.to(room.code).emit('chat:typing', { userId: user.userId, isTyping: false });
+  });
+
+  // ===== Message Edit Handler =====
+  socket.on('message:edit', async (data: { messageId: string; content: string }) => {
+    try {
+      const room = getRoomBySocket(socket.id);
+      if (!room) return;
+
+      const result = await chatService.editMessage(data.messageId, user.userId, data.content);
+
+      if (!result.success) {
+        socket.emit('error', result.error || 'Failed to edit message');
+        return;
+      }
+
+      // Broadcast the edit to all clients in the room
+      io.to(room.code).emit('message:edited', {
+        messageId: data.messageId,
+        content: data.content,
+        editedAt: result.message!.editedAt,
+      });
+    } catch (error) {
+      console.error('Error editing message:', error);
+      socket.emit('error', 'Failed to edit message');
+    }
+  });
+
+  // ===== Message Delete Handler =====
+  socket.on('message:delete', async (data: { messageId: string }) => {
+    try {
+      const room = getRoomBySocket(socket.id);
+      if (!room) return;
+
+      const result = await chatService.deleteMessage(data.messageId, user.userId);
+
+      if (!result.success) {
+        socket.emit('error', result.error || 'Failed to delete message');
+        return;
+      }
+
+      // Broadcast the deletion to all clients in the room
+      io.to(room.code).emit('message:deleted', {
+        messageId: data.messageId,
+      });
+    } catch (error) {
+      console.error('Error deleting message:', error);
+      socket.emit('error', 'Failed to delete message');
+    }
+  });
+
+  // ===== Message Reply Handler =====
+  socket.on('message:reply', async (data: { content: string; parentId: string }) => {
+    try {
+      const room = getRoomBySocket(socket.id);
+      if (!room) return;
+
+      // Validate message
+      const validation = validateChatMessage(data.content, MAX_CHAT_MESSAGE_LENGTH);
+      if (!validation.isValid) {
+        socket.emit('error', validation.error || 'Invalid message');
+        return;
+      }
+
+      const result = await chatService.createReply(
+        room.dbRoomId,
+        user.userId,
+        data.parentId,
+        validation.sanitized,
+        user.displayName
+      );
+
+      if (!result.success) {
+        socket.emit('error', result.error || 'Failed to create reply');
+        return;
+      }
+
+      // Broadcast the reply to all clients in the room
+      io.to(room.code).emit('thread:reply', {
+        reply: result.reply,
+        replyCount: result.replyCount,
+      });
+    } catch (error) {
+      console.error('Error creating reply:', error);
+      socket.emit('error', 'Failed to create reply');
+    }
+  });
+
+  // ===== Thread Open Handler =====
+  socket.on('thread:open', async (data: { parentMessageId: string }) => {
+    try {
+      const result = await chatService.getThread(data.parentMessageId);
+
+      if (!result.success) {
+        socket.emit('error', result.error || 'Thread not found');
+        return;
+      }
+
+      socket.emit('thread:opened', { thread: result.thread });
+    } catch (error) {
+      console.error('Error opening thread:', error);
+      socket.emit('error', 'Failed to open thread');
+    }
+  });
+
+  // ===== Thread Load Replies Handler =====
+  socket.on('thread:load-replies', async (data: { threadId: string; limit?: number; before?: string }) => {
+    try {
+      const result = await chatService.getReplies(
+        data.threadId,
+        data.limit || 50,
+        data.before
+      );
+
+      if (!result.success) {
+        socket.emit('error', result.error || 'Failed to load replies');
+        return;
+      }
+
+      socket.emit('thread:replies', {
+        replies: result.replies,
+        hasMore: result.hasMore,
+      });
+    } catch (error) {
+      console.error('Error loading replies:', error);
+      socket.emit('error', 'Failed to load replies');
+    }
   });
 
   // Cleanup rate limit state on disconnect

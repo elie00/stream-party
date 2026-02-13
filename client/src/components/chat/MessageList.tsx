@@ -9,6 +9,10 @@ interface MessageListProps {
   onLoadMore: () => void;
   onAddReaction: (messageId: string, emoji: string) => void;
   onRemoveReaction: (messageId: string, reactionId: string) => void;
+  onEdit?: (message: ChatMessage) => void;
+  onDelete?: (messageId: string) => void;
+  onReply?: (message: ChatMessage) => void;
+  onOpenThread?: (message: ChatMessage) => void;
 }
 
 export function MessageList({
@@ -18,6 +22,10 @@ export function MessageList({
   onLoadMore,
   onAddReaction,
   onRemoveReaction,
+  onEdit,
+  onDelete,
+  onReply,
+  onOpenThread,
 }: MessageListProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -87,6 +95,10 @@ export function MessageList({
             currentUserId={currentUserId || ''}
             onAddReaction={onAddReaction}
             onRemoveReaction={onRemoveReaction}
+            onEdit={onEdit || (() => {})}
+            onDelete={onDelete || (() => {})}
+            onReply={onReply || (() => {})}
+            onOpenThread={onOpenThread || (() => {})}
           />
         ))}
       </div>
