@@ -7,10 +7,19 @@ class ApiError extends Error {
   }
 }
 
+import { useAuthStore } from '../stores/authStore';
+
 async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
-  // Get token from localStorage
-  const authData = JSON.parse(localStorage.getItem('stream-party-auth') || '{}');
-  const token = authData?.state?.token;
+  // Prefer in-memory Zustand state; fall back to localStorage for backward compat
+  let token = useAuthStore.getState().token;
+  if (!token) {
+    try {
+      const authData = JSON.parse(localStorage.getItem('stream-party-auth') || '{}');
+      token = authData?.state?.token ?? null;
+    } catch {
+      // localStorage may be blocked (incognito / strict privacy)
+    }
+  }
 
   const headers: Record<string, string> = {
     ...(options?.headers as Record<string, string>),

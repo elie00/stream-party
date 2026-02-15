@@ -3,16 +3,33 @@
  * Extracted from ServersPage.tsx for reusability
  */
 
+import { useAuthStore } from '../stores/authStore';
+
+function getToken(): string | null {
+    let token = useAuthStore.getState().token;
+    if (!token) {
+        try {
+            const authData = JSON.parse(localStorage.getItem('stream-party-auth') || '{}');
+            token = authData?.state?.token ?? null;
+        } catch {
+            // localStorage may be blocked
+        }
+    }
+    return token;
+}
+
 function getAuthHeaders(): HeadersInit {
+    const token = getToken();
     return {
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
     };
 }
 
 function getJsonAuthHeaders(): HeadersInit {
+    const token = getToken();
     return {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
     };
 }
 
