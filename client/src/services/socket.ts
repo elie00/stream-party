@@ -94,3 +94,21 @@ export function disconnectSocket(): void {
     reconnectListenersAttached = false;
   }
 }
+
+/**
+ * Proxy that lazily delegates to the real socket singleton.
+ * Allows `import { socket } from './socket'` to work as if
+ * `socket` were a directly-exported Socket.IO instance.
+ */
+export const socketProxy = new Proxy({} as TypedSocket, {
+  get(_target, prop, receiver) {
+    const s = getSocket();
+    const value = Reflect.get(s, prop, receiver);
+    if (typeof value === 'function') {
+      return value.bind(s);
+    }
+    return value;
+  },
+});
+
+export { socketProxy as socket };

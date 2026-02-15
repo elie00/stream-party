@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { MAX_CHAT_MESSAGE_LENGTH, MAX_FILE_UPLOAD_SIZE, ALLOWED_FILE_MIME_TYPES } from '@stream-party/shared';
 import { FileUpload } from './FileUpload';
-import { api } from '../../services/api';
+
 
 interface PendingFile {
   file: File;
@@ -25,10 +25,10 @@ interface ChatInputProps {
   onSubmitReply?: (content: string, parentId: string) => void;
 }
 
-export function ChatInput({ 
-  onSend, 
-  onTypingStart, 
-  onTypingStop, 
+export function ChatInput({
+  onSend,
+  onTypingStart,
+  onTypingStop,
   participants = [],
   editingMessage,
   replyingToMessage,
@@ -44,7 +44,7 @@ export function ChatInput({
   const [mentionQuery, setMentionQuery] = useState('');
   const [mentionStartIndex, setMentionStartIndex] = useState(-1);
   const [selectedMentionIndex, setSelectedMentionIndex] = useState(0);
-  
+
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isTypingRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -69,7 +69,7 @@ export function ChatInput({
   const filteredParticipants = useMemo(() => {
     if (!mentionQuery) return participants;
     const query = mentionQuery.toLowerCase();
-    return participants.filter(p => 
+    return participants.filter(p =>
       p.displayName.toLowerCase().includes(query)
     );
   }, [participants, mentionQuery]);
@@ -97,12 +97,20 @@ export function ChatInput({
     formData.append('file', file);
 
     try {
-      const response = await api.post('/files/upload', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
+      const authData = JSON.parse(localStorage.getItem('stream-party-auth') || '{}');
+      const token = authData?.state?.token;
+      const headers: Record<string, string> = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const response = await fetch('/api/files/upload', {
+        method: 'POST',
+        headers,
+        body: formData,
       });
-      return response.data.id;
+
+      if (!response.ok) throw new Error('Upload failed');
+      const data = await response.json();
+      return data.id;
     } catch (error) {
       console.error('Failed to upload file:', error);
       return null;
@@ -111,17 +119,17 @@ export function ChatInput({
 
   const insertMention = useCallback((displayName: string) => {
     if (mentionStartIndex === -1) return;
-    
+
     const beforeMention = value.slice(0, mentionStartIndex);
     const afterMention = value.slice(inputRef.current?.selectionStart || 0);
     const newValue = `${beforeMention}@${displayName} ${afterMention}`;
-    
+
     setValue(newValue);
     setShowMentions(false);
     setMentionQuery('');
     setMentionStartIndex(-1);
     setSelectedMentionIndex(0);
-    
+
     // Focus input and move cursor after mention
     setTimeout(() => {
       inputRef.current?.focus();
@@ -207,14 +215,14 @@ export function ChatInput({
       if (showMentions && filteredParticipants.length > 0) {
         if (e.key === 'ArrowDown') {
           e.preventDefault();
-          setSelectedMentionIndex(prev => 
+          setSelectedMentionIndex(prev =>
             prev < filteredParticipants.length - 1 ? prev + 1 : 0
           );
           return;
         }
         if (e.key === 'ArrowUp') {
           e.preventDefault();
-          setSelectedMentionIndex(prev => 
+          setSelectedMentionIndex(prev =>
             prev > 0 ? prev - 1 : filteredParticipants.length - 1
           );
           return;
@@ -245,17 +253,17 @@ export function ChatInput({
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const newValue = e.target.value;
       const cursorPos = e.target.selectionStart || 0;
-      
+
       if (newValue.length <= MAX_CHAT_MESSAGE_LENGTH) {
         setValue(newValue);
-        
+
         // Check for @ mentions
         const lastAtIndex = newValue.lastIndexOf('@', cursorPos - 1);
-        
+
         if (lastAtIndex !== -1) {
           // Check if there's a space between @ and cursor (which would end the mention)
           const textAfterAt = newValue.slice(lastAtIndex + 1, cursorPos);
-          
+
           if (!textAfterAt.includes(' ') && !textAfterAt.includes('\n')) {
             // Show mentions dropdown
             setMentionStartIndex(lastAtIndex);
@@ -272,7 +280,7 @@ export function ChatInput({
           setMentionQuery('');
           setMentionStartIndex(-1);
         }
-        
+
         if (newValue.trim()) {
           handleTyping();
         }
@@ -484,11 +492,10 @@ export function ChatInput({
         {/* File upload button */}
         <button
           onClick={() => setShowFileUpload(!showFileUpload)}
-          className={`p-2 rounded-lg transition-colors flex-shrink-0 ${
-            showFileUpload
-              ? 'bg-[#7c3aed] text-white'
-              : 'bg-[#252525] text-[#606060] hover:text-white hover:bg-[#333]'
-          }`}
+          className={`p-2 rounded-lg transition-colors flex-shrink-0 ${showFileUpload
+            ? 'bg-[#7c3aed] text-white'
+            : 'bg-[#252525] text-[#606060] hover:text-white hover:bg-[#333]'
+            }`}
           aria-label="Attach file"
           title="Attach file"
         >
@@ -524,11 +531,10 @@ export function ChatInput({
                 <button
                   key={participant.userId}
                   onClick={() => insertMention(participant.displayName)}
-                  className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 transition-colors ${
-                    index === selectedMentionIndex
-                      ? 'bg-[#7c3aed] text-white'
-                      : 'text-white hover:bg-[#333]'
-                  }`}
+                  className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 transition-colors ${index === selectedMentionIndex
+                    ? 'bg-[#7c3aed] text-white'
+                    : 'text-white hover:bg-[#333]'
+                    }`}
                 >
                   <span className="text-[#a0a0a0]">@</span>
                   <span>{participant.displayName}</span>
@@ -557,9 +563,8 @@ export function ChatInput({
       {showCharCount && (
         <div className="text-right mt-1">
           <span
-            className={`text-[10px] ${
-              value.length >= MAX_CHAT_MESSAGE_LENGTH ? 'text-red-400' : 'text-[#606060]'
-            }`}
+            className={`text-[10px] ${value.length >= MAX_CHAT_MESSAGE_LENGTH ? 'text-red-400' : 'text-[#606060]'
+              }`}
           >
             {value.length}/{MAX_CHAT_MESSAGE_LENGTH}
           </span>
