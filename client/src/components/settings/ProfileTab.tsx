@@ -16,7 +16,7 @@ export function ProfileTab({ myStatus }: ProfileTabProps) {
             <h2 className="text-xl font-semibold text-white">Paramètres du profil</h2>
 
             <div className="flex items-center gap-6">
-                <Avatar name={displayName} size="xl" status={myStatus} showStatus />
+                <Avatar name={displayName} size="lg" status={myStatus} showStatus />
                 <Button variant="secondary" size="sm">Changer l'avatar</Button>
             </div>
 
