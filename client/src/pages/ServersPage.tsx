@@ -10,140 +10,24 @@ import {
 import { useServerStore } from '../stores/serverStore';
 import { useAuthStore } from '../stores/authStore';
 import { socket } from '../services/socket';
+import {
+  fetchServers,
+  createServerApi,
+  joinServerApi,
+  getServerApi,
+  updateServerApi,
+  deleteServerApi,
+  leaveServerApi,
+  createChannelApi,
+  deleteChannelApi,
+} from '../services/serverApi';
 import { useToastStore } from '../components/ui/Toast';
 import type { Server, Channel, ServerWithDetails } from '@stream-party/shared';
-
-// API functions
-async function fetchServers() {
-  const response = await fetch('/api/servers', {
-    headers: {
-      Authorization: `Bearer ${localStorage.getItem('token')}`,
-    },
-  });
-  if (!response.ok) throw new Error('Failed to fetch servers');
-  return response.json();
-}
-
-async function createServerApi(data: { name: string; icon?: string; description?: string }) {
-  const response = await fetch('/api/servers', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${localStorage.getItem('token')}`,
-    },
-    body: JSON.stringify(data),
-  });
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Failed to create server');
-  }
-  return response.json();
-}
-
-async function joinServerApi(inviteCode: string) {
-  const response = await fetch('/api/servers/join', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${localStorage.getItem('token')}`,
-    },
-    body: JSON.stringify({ inviteCode }),
-  });
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Failed to join server');
-  }
-  return response.json();
-}
-
-async function getServerApi(serverId: string) {
-  const response = await fetch(`/api/servers/${serverId}`, {
-    headers: {
-      Authorization: `Bearer ${localStorage.getItem('token')}`,
-    },
-  });
-  if (!response.ok) throw new Error('Failed to fetch server');
-  return response.json();
-}
-
-async function updateServerApi(serverId: string, data: { name?: string; icon?: string; description?: string }) {
-  const response = await fetch(`/api/servers/${serverId}`, {
-    method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${localStorage.getItem('token')}`,
-    },
-    body: JSON.stringify(data),
-  });
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Failed to update server');
-  }
-  return response.json();
-}
-
-async function deleteServerApi(serverId: string) {
-  const response = await fetch(`/api/servers/${serverId}`, {
-    method: 'DELETE',
-    headers: {
-      Authorization: `Bearer ${localStorage.getItem('token')}`,
-    },
-  });
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Failed to delete server');
-  }
-  return response.json();
-}
-
-async function leaveServerApi(serverId: string) {
-  const response = await fetch(`/api/servers/${serverId}/leave`, {
-    method: 'DELETE',
-    headers: {
-      Authorization: `Bearer ${localStorage.getItem('token')}`,
-    },
-  });
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Failed to leave server');
-  }
-  return response.json();
-}
-
-async function createChannelApi(serverId: string, data: { name: string; type: 'text' | 'voice'; topic?: string }) {
-  const response = await fetch(`/api/servers/${serverId}/channels`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${localStorage.getItem('token')}`,
-    },
-    body: JSON.stringify(data),
-  });
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Failed to create channel');
-  }
-  return response.json();
-}
-
-async function deleteChannelApi(serverId: string, channelId: string) {
-  const response = await fetch(`/api/servers/${serverId}/channels/${channelId}`, {
-    method: 'DELETE',
-    headers: {
-      Authorization: `Bearer ${localStorage.getItem('token')}`,
-    },
-  });
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Failed to delete channel');
-  }
-  return response.json();
-}
 
 export function ServersPage() {
   const navigate = useNavigate();
   const addToast = useToastStore((state) => state.addToast);
-  
+
   const {
     servers,
     activeServer,
@@ -286,7 +170,7 @@ export function ServersPage() {
 
   const handleUpdateServer = async (data: { name?: string; icon?: string; description?: string }) => {
     if (!activeServer) return;
-    
+
     setIsLoading(true);
     try {
       const { server } = await updateServerApi(activeServer.id, data);
@@ -299,7 +183,7 @@ export function ServersPage() {
 
   const handleDeleteServer = async () => {
     if (!activeServer) return;
-    
+
     await deleteServerApi(activeServer.id);
     removeServer(activeServer.id);
     socket.emit('server:leave', { serverId: activeServer.id });
@@ -308,7 +192,7 @@ export function ServersPage() {
 
   const handleLeaveServer = async () => {
     if (!activeServer) return;
-    
+
     await leaveServerApi(activeServer.id);
     removeServer(activeServer.id);
     socket.emit('server:leave', { serverId: activeServer.id });
